@@ -1,27 +1,32 @@
 // ==UserScript==
-// @name                Empire Overview
-// @author              germano / 1.17 to 1.18 by Ariston / 1.18 germano / up 1.20 thomasccm
-// @description         Script for Ikariam 0.7.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
-// @namespace           Beta
-// @grant               unsafeWindow
-// @grant               GM_getValue
-// @grant               GM_setValue
-// @grant               GM_deleteValue
-// @grant               GM_addStyle
-// @grant               GM_registerMenuCommand
-// @grant               GM_xmlhttpRequest
-// @grant               GM_openInTab
+// @name                 Empire Overview
+// @name:en              Empire Overview
+// @name:el              Empire Overview
+// @author               germano / 1.17 to 1.18 by Ariston /up 1.18 germano by mrFiX+(Thanx my friend) /up 1.9xx
+// @description          Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
+// @description:en       Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
+// @description:el       Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
+// @icon                 https://www.google.com/s2/favicons?domain=ikariam.com
+// @namespace            Beta
+// @grant                unsafeWindow
+// @grant                GM_getValue
+// @grant                GM_setValue
+// @grant                GM_deleteValue
+// @grant                GM_addStyle
+// @grant                GM_registerMenuCommand
+// @grant                GM_xmlhttpRequest
+// @grant                GM_openInTab
 //
-// @exclude             http://board.*.ikariam.gameforge.com*
-// @exclude             http://*.ikariam.gameforge.*/board
-// @include             /https?:\/\/s[0-9]*-[a-z]{2}\.ikariam\.gameforge\.com\/.*/
+// @exclude              http://board.*.ikariam.gameforge.com*
+// @exclude              http://*.ikariam.gameforge.*/board
+// @include              /https?:\/\/s[0-9]*-[a-z]{2}\.ikariam\.gameforge\.com\/.*/
 //
-// @require             https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
-// @require             https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
+// @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
+// @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 //
-// @version             1.21
+// @version              1.1909
 //
-// @license             GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
+// @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
 
 /***********************************************************************************************************************
@@ -128,7 +133,7 @@
   /***********************************************************************************************************************
    * Inject button into page before the page renders the YUI menu or it will not be animated (less work)
    **********************************************************************************************************************/
-  $('.menu_slots > .expandable:last').after('<li class="expandable slot99 empire_Menu" onclick=""><div class="empire_Menu image" style="background-image: url(skin/minimized/weltinfo.png); background-position: 0px 0px; background-size:33px auto"></div></div><div class="name"><span class="namebox">Empire Overview</span></div></li>');
+  $('.menu_slots > .expandable:last').after('<li class="expandable slot99 empire_Menu" onclick=""><div class="empire_Menu image" style="background-image: url(/cdn/all/both/minimized/weltinfo.png); background-position: 0px 0px; background-size:33px auto"></div></div><div class="name"><span class="namebox">Empire Overview</span></div></li>');
 
   /***********************************************************************************************************************
    * Utility Functions
@@ -961,7 +966,8 @@
     this._tradeGoodID = 0;
     this.knownTime = $.now();
     this._lastPopUpdate = $.now();
-    this._buildings = new Array(20);
+//    this._buildings = new Array(25);
+    this._buildings = new Array(Math.max($('#locations [id^="position"]').length,25));
     var i = this._buildings.length;
     while (i--) {
       this._buildings[i] = new Building(this, i);
@@ -1110,9 +1116,9 @@
       return this._citizens * 3 * serverTyp + priestsGold;
     },
     updateIncome: function (value) {
-      /* if(Math.abs(this._citizens - value / 3) > 2) {
-        return this.updateCitizens((value / 3))
-      } */
+      /*  if(Math.abs(this._citizens - value / 3) > 2) {
+          return this.updateCitizens((value / 3))
+        }*/
       return false;
     },
     get getExpenses() {
@@ -1144,7 +1150,7 @@
       return this._buildings[position];
     },
     getWonder: function () {
-      i = 7;//ikariam.wonder();
+      var i = 7;//ikariam.wonder();
       return i;
     },
     get getTradeGood() {
@@ -1347,7 +1353,8 @@
     },
     get getAvailableBuildings() {
       var p = 0;
-      var i = 18 + database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.BUREACRACY) + database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY);
+//      var i = 22 + database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.BUREACRACY) + database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY);
+      var i = this.getBuildings.length+database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.BUREACRACY)+database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY)-2;
       $.each(this.getBuildings, function (idx, building) {
         i -= !building.isEmpty;
       });
@@ -1743,8 +1750,8 @@
   const EMPIRE_STORAGE_PREFIX = [
     '', GM_info.script.namespace, GM_info.script.name, unsafeWindow.dataSetForView.avatarId, ''].join('***');
   var empire = {
-    version: 1.21,
-    scriptId: 766,
+    version: 1.1909,
+    scriptId: 456297,
     scriptName: 'Empire Overview',
     logger: null,
     loaded: false,
@@ -1812,7 +1819,7 @@
         try {
           GM_xmlhttpRequest({
             method: 'GET',
-            url: 'https://greasyfork.org/scripts/' + empire.scriptId + '-empire-overview/code/Empire_Overview.meta.js', // + $.now(),
+            url: 'https://greasyfork.org/scripts/' + empire.scriptId + '-empire-overview/code/Empire%20Overview.user.js', // + $.now(),
             headers: { 'Cache-Control': 'no-cache' },
             onload: function (resp) {
               var remote_version, rt;
@@ -1925,6 +1932,10 @@
           $.mergeValues(this.settings, settings);
 
           var globalData = this.UnSerialize(empire.getVar("globalData", ""));
+          //---mrfix---
+          var cases = ['demokratie', 'ikakratie', 'aristokratie', 'diktatur', 'nomokratie', 'oligarchie', 'technokratie', 'theokratie'];
+          globalData.governmentType = cases.indexOf(globalData.governmentType) === -1 ? '' : globalData.governmentType;
+          //---mrfix---
           if (globalData.governmentType === '') globalData.governmentType = 'ikakratie';
           if (typeof globalData == 'object') {
             $.mergeValues(this._globalData, globalData);
@@ -2185,9 +2196,9 @@
               case "incoming":
                 return getIncomeMovementTip(tiptype.pop());
                 break;
-              /* case "plunder":
-                return getPlunderMovementTip(tiptype.pop());
-                break; */
+              /*   case "plunder":
+                   return getPlunderMovementTip(tiptype.pop());
+                   break	*/
             }
             break;
           default:
@@ -2205,7 +2216,7 @@
           });
           var expense = database.getGlobalData.finance.armyCost + database.getGlobalData.finance.armySupply + database.getGlobalData.finance.fleetCost + database.getGlobalData.finance.fleetSupply - researchCost;
           sigmaIncome = income - expense;
-          return '<table>\n    <thead>\n    <th><div align="center">\n <img src="skin/resources/icon_upkeep.png" style="height: 14px;"></td><td><b>1 ' + Constant.LanguageData[lang].hour + '</b></td><td><b>1 ' + Constant.LanguageData[lang].day + '</b></td><td><b> 1 ' + Constant.LanguageData[lang].week + '</b></div><td></td></th>\n    </thead>\n    <tbody>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost, false, 0) + ' </td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost * 24, false, 0) + '</td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].army_cost + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf"> ' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].fleet_cost + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].army_supply + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].fleet_supply + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(researchCost, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(researchCost * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(researchCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].research_cost + '</i></td>\n    </tr>\n    <tr style="border-top:1px solid #FFE4B5">\n        <td><b>+&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(income, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(income * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(income * 7 * 24, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].income + '</i></td>\n    </tr>\n    <tr>\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(expense, false, 0) + '</td>\n        <td class="left">' + Utils.FormatNumToStr(expense * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(expense * 24 * 7, false, 0) + '</td>\n        <td><i>« ' + Constant.LanguageData[lang].expenses + '</i></td></tbody><tfoot>\n    </tr>\n    <tr  class="total">\n        <td><b>Σ ' + ((sigmaIncome > 0) ? '+&nbsp;' : '-&nbsp;') + '</b></td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome), false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome) * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome) * 7 * 24, false, 0) + '</td>\n        <td><i>« ' + Constant.LanguageData[lang].balances + '</i></td>\n    </tr>\n    </tfoot>\n</table>';
+          return '<table>\n    <thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_upkeep.png" style="height: 14px;"></td><td><b>1 ' + Constant.LanguageData[lang].hour + '</b></td><td><b>1 ' + Constant.LanguageData[lang].day + '</b></td><td><b> 1 ' + Constant.LanguageData[lang].week + '</b></div><td></td></th>\n    </thead>\n    <tbody>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost, false, 0) + ' </td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost * 24, false, 0) + '</td>\n        <td> ' + Utils.FormatNumToStr(database.getGlobalData.finance.armyCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].army_cost + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf"> ' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].fleet_cost + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.armySupply * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].army_supply + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(database.getGlobalData.finance.fleetSupply * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].fleet_supply + '</i></td>\n    </tr>\n    <tr class="data">\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(researchCost, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(researchCost * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(researchCost * 24 * 7, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].research_cost + '</i></td>\n    </tr>\n    <tr style="border-top:1px solid #FFE4B5">\n        <td><b>+&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(income, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(income * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(income * 7 * 24, false, 0) + '</td>\n        <td class="left"><i>« ' + Constant.LanguageData[lang].income + '</i></td>\n    </tr>\n    <tr>\n        <td><b>-&nbsp;</b></td>\n        <td class="nolf">' + Utils.FormatNumToStr(expense, false, 0) + '</td>\n        <td class="left">' + Utils.FormatNumToStr(expense * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr(expense * 24 * 7, false, 0) + '</td>\n        <td><i>« ' + Constant.LanguageData[lang].expenses + '</i></td></tbody><tfoot>\n    </tr>\n    <tr  class="total">\n        <td><b>Σ ' + ((sigmaIncome > 0) ? '+&nbsp;' : '-&nbsp;') + '</b></td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome), false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome) * 24, false, 0) + '</td>\n        <td>' + Utils.FormatNumToStr((sigmaIncome) * 7 * 24, false, 0) + '</td>\n        <td><i>« ' + Constant.LanguageData[lang].balances + '</i></td>\n    </tr>\n    </tfoot>\n</table>';
         }
         function getArmyMovementTip(unit) {
           var total = 0;
@@ -2229,7 +2240,7 @@
           if (popDiff !== 0) {
             Tip = '<tr class="data"><tfoot>&nbsp;' + Utils.FormatTimeLengthToStr((popDiff) / populationData.growth * 3600000, 4) + '<td> « ' + Constant.LanguageData[lang].time_to_full + '</td>\n    </tr>\n</tfoot>';
           }
-          var populationTip = '<table>\n    <thead>\n    <th colspan="2"><div align="center">\n <img src="skin/resources/icon_population.png" style="height: 15px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
+          var populationTip = '<table>\n    <thead>\n    <th colspan="2"><div align="center">\n <img src="/cdn/all/both/resources/icon_population.png" style="height: 15px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{1}</td>\n        <td>« {5}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{2}</td>\n        <td>« {0}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{3}</td>\n        <td>« {6}</td>\n    </tr>\n' +
@@ -2240,7 +2251,7 @@
           var lang = database.settings.languageChange.value;
           var populationData = city.populationData;
           var popDiff = populationData.maxPop - populationData.currentPop;
-          var Icon = populationData.happiness >= 0 ? 'skin/icons/growth_positive.png' : 'skin/icons/growth_negative.png';
+          var Icon = populationData.happiness >= 0 ? '/cdn/all/both/icons/growth_positive.png' : '/cdn/all/both/icons/growth_negative.png';
           var Tip = '';
           if (popDiff > 0) {
             Tip = '<table>\n    <thead>\n    <th><div align="center">\n <img src="' + Icon + '" style="height: 14px;"></td><td><b>1 ' + Constant.LanguageData[lang].hour + '</b></td><td><b>1 ' + Constant.LanguageData[lang].day + '</b></td><td><b> 1 ' + Constant.LanguageData[lang].week + '</b></div><td></td></th>\n    </thead>\n    <tbody>\n <tr><td><b>' + ((populationData.growth > 0) ? '+' : '-') + '</b></td><td>' + ((popDiff === 0) ? '0' + Constant.LanguageData[lang].decimalPoint + '00' : Utils.FormatNumToStr(populationData.growth, false, 2)) + '</td><td>' + ((popDiff === 0) ? '0' + Constant.LanguageData[lang].decimalPoint + '00' : (populationData.growth * 24 > popDiff) ? Utils.FormatNumToStr(popDiff, false, 2) : Utils.FormatNumToStr(populationData.growth * 24, false, 2)) + '</td><td><i>' + ((popDiff === 0) ? '0' + Constant.LanguageData[lang].decimalPoint + '00' : (populationData.growth * 24 * 7 > popDiff) ? Utils.FormatNumToStr(popDiff, false, 2) : Utils.FormatNumToStr(populationData.growth * 24 * 7, false, 2)) + '</i></td><td></td></tr></tbody></table>';
@@ -2267,7 +2278,7 @@
             img = 'ecstatic';
             sat = Constant.LanguageData[lang].euphoric;
           }
-          var growthTip = '<table>\n    <thead>\n    <th colspan="2"><div align="center">\n <img src="skin/smilies/' + img + '_x25.png" style="height: 18px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
+          var growthTip = '<table>\n    <thead>\n    <th colspan="2"><div align="center">\n <img src="/cdn/all/both/smilies/' + img + '_x25.png" style="height: 18px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{1}</td>\n        <td>« {2}</td>\n    </tr>\n' +
             '<tr class="data">\n            {3}</td>\n        <td>« {4}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{5}</td>\n        <td>« {6}</td>\n    </tr>\n' +
@@ -2278,11 +2289,11 @@
           var garrisonTip = '<table>\n    <thead>\n    <th colspan="3"><div align="center">\n <b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{1}</td>\n        <td>{2}</td>\n        <td>« {3}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{4}</td>\n        <td>{5}</td>\n        <td>« {6}</td>\n    </tr>\n</tfoot></table>';
-          return Utils.format(garrisonTip, [Constant.LanguageData[lang].garrision, '<img src="skin/advisors/military/bang_soldier.png" style="height: 15px;">', city.garrisonland, Constant.LanguageData[lang].Inland, '<img src="skin/advisors/military/bang_ship.png" style="height: 15px;">', city.garrisonsea, Constant.LanguageData[lang].Sea]);
+          return Utils.format(garrisonTip, [Constant.LanguageData[lang].garrision, '<img src="/cdn/all/both/advisors/military/bang_soldier.png" style="height: 15px;">', city.garrisonland, Constant.LanguageData[lang].Inland, '<img src="/cdn/all/both/advisors/military/bang_ship.png" style="height: 15px;">', city.garrisonsea, Constant.LanguageData[lang].Sea]);
         }
         function getWonderTip() {
           var populationData = city.populationData;
-          var wonderTip = '<table>\n    <thead>\n    <th colspan="3"><div align="center">\n <img src="skin/wonder/w{0}.png" style="height: 25px; float: left">{1}</div></th>\n    </thead>\n    <tbody>\n ' +
+          var wonderTip = '<table>\n    <thead>\n    <th colspan="3"><div align="center">\n <img src="/cdn/all/both/wonder/w{0}.png" style="height: 25px; float: left">{1}</div></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{2}</td>\n        <td>« {3}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{4}%</td>\n       <td>« {5}</td>\n    </tr>\n' +
             '</tbody></table>';
@@ -2291,9 +2302,9 @@
         function getNoWonderTip() {
           var populationData = city.populationData;
           var size = 25;
-          /* if (city.getWonder == 4 || 5)
-            size = 30; */
-          var noWonderTip = '<table><thead><th colspan="3"><div align="center"><img src="skin/wonder/w{0}.png" style="height: {4}px; float: left">{1}</div></th></thead>\n    <tbody>\n ' +
+          /*if (city.getWonder == 4 || 5)
+          size = 30;*/
+          var noWonderTip = '<table><thead><th colspan="3"><div align="center"><img src="/cdn/all/both/wonder/w{0}.png" style="height: {4}px; float: left">{1}</div></th></thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{2}</td>\n        <td> {3}</td>\n    </tr>\n' +
             '</tbody></table>';
           return Utils.format(noWonderTip, [city.getWonder, 'Brunnen des<br>Poseidon', 'kein Tempel in', city._name, size]);
@@ -2304,18 +2315,18 @@
           if (city.getExpenses < 0) {
             Tip = '<td></td><td>' + Utils.FormatNumToStr(city.getExpenses, true, 0) + '</td><td>' + Utils.FormatNumToStr(city.getExpenses * 24, true, 0) + '</td><td><i>' + Utils.FormatNumToStr(city.getExpenses * 24 * 7, true, 0) + '</i></td><td></td></tr></tbody><tfoot><tr><td>\u03A3<b> ' + ((totCity > 0) ? '+&nbsp;' : '-&nbsp;') + '</b></td><td>' + Utils.FormatNumToStr(totCity, false, 0) + '</td><td>' + Utils.FormatNumToStr(totCity * 24, false, 0) + '</td><td><i>' + Utils.FormatNumToStr(totCity * 7 * 24, false, 0) + '</i></td><td></td></tr></tfoot>';
           }
-          var financeTip = '<table>\n    <thead>\n    <th><div align="center">\n <img src="skin/resources/icon_upkeep.png" style="height: 14px;"></td><td><b>{0}</b></td><td><b>{1}</b></td><td><b>{2}</b></div><td></td></th>\n    </thead>\n    <tbody>\n ' +
+          var financeTip = '<table>\n    <thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_upkeep.png" style="height: 14px;"></td><td><b>{0}</b></td><td><b>{1}</b></td><td><b>{2}</b></div><td></td></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td></td>\n        <td>{3}</td>\n        <td>{4}</td>\n        <td><i>{5}</i></td>\n        <td></td>\n    </tbody></tr>\n{6}</table>';
           return Utils.format(financeTip, ['1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(city.getIncome, true, 0), Utils.FormatNumToStr(city.getIncome * 24, false, 0), Utils.FormatNumToStr(city.getIncome * 24 * 7, false, 0), Tip]);
         }
         function getResearchTip(researchData) {
           researchData = researchData || city.research.researchData;
-          var tooltip = (researchData.scientists > 0) ? '<table>\n    <thead>\n  <th colspan="5"><div align="center">\n <img src="skin/buildings/y50/y50_academy.png" style="height: 20px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
+          var tooltip = (researchData.scientists > 0) ? '<table>\n    <thead>\n  <th colspan="5"><div align="center">\n <img src="/cdn/all/both/buildings/y50/y50_academy.png" style="height: 20px; float: left"><b>{0}</b></div></th>\n    </thead>\n    <tbody>\n ' +
             '<tr class="data">\n        <td>{1}</td>\n        <td colspan="4">« {2}</td>\n    </tr>\n' +
             '<tr class="data">\n        <td>{3}</td>\n        <td colspan="4">« {4}</td>\n    </tr>\n' +
-            '<thead>\n    <th><div align="center">\n <img src="skin/resources/icon_research_time.png" style="height: 14px;">  <td><b>{5}</b></td><td><b>{6}</b></td><td><b>{7}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
+            '<thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_research_time.png" style="height: 14px;">  <td><b>{5}</b></td><td><b>{6}</b></td><td><b>{7}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
             '<tr class="data">\n        <td>{11}</td>\n        <td>{8}</td>\n        <td>{9}</td>\n    <td><i>{10}</i></td>\n        <td></td></tr>\n</table>' : '';
-          return Utils.format(tooltip, [Constant.LanguageData[lang].academy, Utils.FormatNumToStr(researchData.scientists, false, 0), Constant.LanguageData[lang].scientists, Utils.FormatNumToStr(city.maxSci, false, 0), Constant.LanguageData[lang].scientists_max, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(researchData.total, true, 0), Utils.FormatNumToStr(researchData.total * 24, false, 0), Utils.FormatNumToStr((researchData.total * 24) * 7, false, 0), database.getGlobalData.hasPremiumFeature(Constant.Premium.RESEARCH_POINTS_BONUS) ? '<img src="skin/premium/b_premium_research.jpg" style="width:18px;">' : '']);
+          return Utils.format(tooltip, [Constant.LanguageData[lang].academy, Utils.FormatNumToStr(researchData.scientists, false, 0), Constant.LanguageData[lang].scientists, Utils.FormatNumToStr(city.maxSci, false, 0), Constant.LanguageData[lang].scientists_max, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(researchData.total, true, 0), Utils.FormatNumToStr(researchData.total * 24, false, 0), Utils.FormatNumToStr((researchData.total * 24) * 7, false, 0), database.getGlobalData.hasPremiumFeature(Constant.Premium.RESEARCH_POINTS_BONUS) ? '<img src="/cdn/all/both/premium/b_premium_research.jpg" style="width:18px;">' : '']);
         }
         function getIncomingTip() {
           var cRes = city.getResource(resourceName).getCurrent;
@@ -2363,29 +2374,29 @@
           return '';
         }
         function getBuildingTooltip(building) {
-          var uConst = (typeof building !== "undefined") ? building.isUpgrading : false;
-          var resourceCost = (typeof building !== "undefined") ? building.getUpgradeCost : {};
+          var uConst = building.isUpgrading;
+          var resourceCost = building.getUpgradeCost;
           var serverTyp = 1;
           if (ikariam.Server() == 's201' || ikariam.Server() == 's202') serverTyp = 3;
           var elem = '';
           var time = 0;
           var needlevel = 0;
           var costlevel = 0;
-          needlevel = (typeof building !== "undefined") ? building.getLevel + 2 : 2;
-          costlevel = (typeof building !== "undefined") ? building.getLevel + 1 : 1;
+          needlevel = building.getLevel + 2;
+          costlevel = building.getLevel + 1;
           for (var key in resourceCost) {
             if (key == 'time') {
-              time = '<tr class="total"><td><img src="skin/resources/icon_time.png" style="height: 11px; float: left;"></td><td colspan="2" ><i>(' + Utils.FormatTimeLengthToStr(resourceCost[key] / serverTyp, 3, ' ') + ')</i></td></tr>';
+              time = '<tr class="total"><td><img src="/cdn/all/both/resources/icon_time.png" style="height: 11px; float: left;"></td><td colspan="2" ><i>(' + Utils.FormatTimeLengthToStr(resourceCost[key] / serverTyp, 3, ' ') + ')</i></td></tr>';
               continue;
             }
             if (resourceCost[key]) {
               elem += '<tr class="data"><td><div class="icon ' + key + 'Image"></div></td><td>' + Utils.FormatNumToStr(resourceCost[key], false, 0) + '</td>';
-              elem += (building.city().getResource(key).getCurrent < resourceCost[key] ? '<td class="red left">(' + Utils.FormatNumToStr(building.city().getResource(key).getCurrent - resourceCost[key], true, 0) + ')</td></tr>' : '<td><img src="skin/interface/check_mark_17px.png" style="height:11px; float:left;"></td></tr>');
+              elem += (building.city().getResource(key).getCurrent < resourceCost[key] ? '<td class="red left">(' + Utils.FormatNumToStr(building.city().getResource(key).getCurrent - resourceCost[key], true, 0) + ')</td></tr>' : '<td><img src="/cdn/all/both/interface/check_mark_17px.png" style="height:11px; float:left;"></td></tr>');
             }
           }
           elem = (elem !== '') ? '<table><thead><tr><th colspan="3" align="center"><b>' + (uConst ? Constant.LanguageData[lang].next_Level + ' ' + needlevel : Constant.LanguageData[lang].next_Level + ' ' + costlevel) + '</b></th></tr></thead><tbody>' + elem + '</tbody><tfoot>' + time + '</tfoot></table>' : '<table><thead><tr><th colspan="3" align="center">' + Constant.LanguageData[lang].max_Level + '</th></tr></thead></table>';
           if (uConst) {
-            elem = '<table><thead><tr><th colspan="3" align="center"><b>' + Constant.LanguageData[lang].constructing + '</b></th></tr></thead>' + '<tbody><tr><td></td><td>' + Utils.FormatFullTimeToDateString(building.getCompletionTime, true) + '</td></tr>' + '<tr><td><img src="skin/resources/icon_time.png" style="height: 11px; float: left;"></td><td><i>(' + Utils.FormatTimeLengthToStr(building.getCompletionTime - $.now(), 3, ' ') + ')</i></td></tr></tbody></table>' + elem;
+            elem = '<table><thead><tr><th colspan="3" align="center"><b>' + Constant.LanguageData[lang].constructing + '</b></th></tr></thead>' + '<tbody><tr><td></td><td>' + Utils.FormatFullTimeToDateString(building.getCompletionTime, true) + '</td></tr>' + '<tr><td><img src="/cdn/all/both/resources/icon_time.png" style="height: 11px; float: left;"></td><td><i>(' + Utils.FormatTimeLengthToStr(building.getCompletionTime - $.now(), 3, ' ') + ')</i></td></tr></tbody></table>' + elem;
           }
           return elem;
         }
@@ -2438,20 +2449,20 @@
           var serverTyp = 1;
           if (ikariam.Server() == 's201' || ikariam.Server() == 's202') serverTyp = 3;
           if (city.plundergold > 0 && serverTyp != 1) {
-            gold = '<td><img src="skin/resources/icon_gold.png" style="height: 12px;"></td><td>' + Utils.FormatNumToStr(city.plundergold) + '</td><td>\u221E</td><td> « ' + Constant.LanguageData[lang].plundergold + '';
+            gold = '<td><img src="/cdn/all/both/resources/icon_gold.png" style="height: 12px;"></td><td>' + Utils.FormatNumToStr(city.plundergold) + '</td><td>\u221E</td><td> « ' + Constant.LanguageData[lang].plundergold + '';
           }
-          var progTip = '<table>\n <thead>\n <tr>\n <th><img src="skin/premium/safecapacity_small.png" style="height: 16px;"></th>\n <th><b>{12}</b></th>\n <th colspan="2"><b>{13}</b></th>\n        \n    </tr>\n    </thead>\n    <tbody>{0}{11}<tr class="total" style="border-top:1px solid #daa520">\n        <td>{9}</td>\n        <td>{1}</td>\n        <td>{2}</td>\n        <td><i>« {14}</i></td>\n    </tr>\n    <tr class="total">\n        <td></td>\n        <td>{16}</td>\n        <td>{17}</td>\n        <td><i>« {18}</i></td>\n    </tr>\n    <tr>\n        <td></td>\n        <td>{19}</td>\n        <td>{20}</td>\n        <td></td>\n    </tr>\n        <tr class="total" style="border-top:1px solid #daa520">\n        <td>{10}</td>\n        <td>{3}</td>\n        <td>{4}</td>\n        <td><i>« {15}</i></td>\n    </tr>\n    <tr>\n        <td></td>\n        <td>{5}</td>\n        <td>{6}</td>\n        <td></td>\n    </tr>\n    </tbody>\n    <tfoot>\n    <tr>\n        <td colspan="3">{7}</td>\n        <td>« {8}</td>\n    </tr>\n    </tfoot>\n</table>';
+          var progTip = '<table>\n <thead>\n <tr>\n <th><img src="/cdn/all/both/premium/safecapacity_small.png" style="height: 16px;"></th>\n <th><b>{12}</b></th>\n <th colspan="2"><b>{13}</b></th>\n        \n    </tr>\n    </thead>\n    <tbody>{0}{11}<tr class="total" style="border-top:1px solid #daa520">\n        <td>{9}</td>\n        <td>{1}</td>\n        <td>{2}</td>\n        <td><i>« {14}</i></td>\n    </tr>\n    <tr class="total">\n        <td></td>\n        <td>{16}</td>\n        <td>{17}</td>\n        <td><i>« {18}</i></td>\n    </tr>\n    <tr>\n        <td></td>\n        <td>{19}</td>\n        <td>{20}</td>\n        <td></td>\n    </tr>\n        <tr class="total" style="border-top:1px solid #daa520">\n        <td>{10}</td>\n        <td>{3}</td>\n        <td>{4}</td>\n        <td><i>« {15}</i></td>\n    </tr>\n    <tr>\n        <td></td>\n        <td>{5}</td>\n        <td>{6}</td>\n        <td></td>\n    </tr>\n    </tbody>\n    <tfoot>\n    <tr>\n        <td colspan="3">{7}</td>\n        <td>« {8}</td>\n    </tr>\n    </tfoot>\n</table>';
           var progTr = '<tr class="data">\n <td style="width:20px; background: url(\'{0}\'); background-size: auto 23px; background-position: -1px -1px; \n background-repeat: no-repeat;">\n </td>\n <td>{1}</td>\n <td>{2}</td>\n <td>« {3}</td>\n</tr>';
           var rows = '';
           $.each(storage.buildings, function (buildingName, data) {
             rows += Utils.format(progTr, [Constant.BuildingData[buildingName].icon, Utils.FormatNumToStr(data.safe, false, 0), Utils.FormatNumToStr(data.storage, false, 0), data.lang]);
           });
-          return Utils.format(progTip, [rows, Utils.FormatNumToStr(storage.safe, false, 0), Utils.FormatNumToStr(storage.capacity, false, 0), Utils.FormatNumToStr(Math.min(storage.safe, current), false, 0), Utils.FormatNumToStr(Math.min(storage.capacity, current), false, 0), Utils.FormatNumToStr(Math.min(1, current / storage.safe) * 100, false, 2) + '%', Utils.FormatNumToStr(Math.min(1, current / storage.capacity) * 100, false, 2) + '%', Utils.FormatTimeLengthToStr(fulltime, 4), fulltime < 0 ? Constant.LanguageData[lang].time_to_empty : Constant.LanguageData[lang].time_to_full, database.getGlobalData.hasPremiumFeature(Constant.Premium.STORAGECAPACITY_BONUS) ? '<img src="skin/premium/b_premium_storagecapacity.jpg" style="width:18px;">' : '', database.getGlobalData.hasPremiumFeature(Constant.Premium.SAFECAPACITY_BONUS) ? '<img src="skin/premium/b_premium_safecapacity.jpg" style="width:18px;">' : '', gold, Constant.LanguageData[lang].safe, Constant.LanguageData[lang].capacity, Constant.LanguageData[lang].maximum, Constant.LanguageData[lang].used, Utils.FormatNumToStr(storage.safe - Math.min(storage.safe, current), false, 0), Utils.FormatNumToStr(storage.capacity - Math.min(storage.capacity, current), false, 0), Constant.LanguageData[lang].missing, Utils.FormatNumToStr(100 - (Math.min(1, current / storage.safe) * 100), false, 2 === 0) ? Utils.FormatNumToStr(100.01 - (Math.min(1, current / storage.safe) * 100), false, 2) + '%' : Utils.FormatNumToStr(100 - (Math.min(1, current / storage.safe) * 100), false, 2) + '%', Utils.FormatNumToStr(100 - (Math.min(1, current / storage.capacity) * 100), false, 2 === 0) ? Utils.FormatNumToStr(100.01 - (Math.min(1, current / storage.capacity) * 100), false, 2) + '%' : Utils.FormatNumToStr(100 - (Math.min(1, current / storage.capacity) * 100), false, 2) + '%']);
+          return Utils.format(progTip, [rows, Utils.FormatNumToStr(storage.safe, false, 0), Utils.FormatNumToStr(storage.capacity, false, 0), Utils.FormatNumToStr(Math.min(storage.safe, current), false, 0), Utils.FormatNumToStr(Math.min(storage.capacity, current), false, 0), Utils.FormatNumToStr(Math.min(1, current / storage.safe) * 100, false, 2) + '%', Utils.FormatNumToStr(Math.min(1, current / storage.capacity) * 100, false, 2) + '%', Utils.FormatTimeLengthToStr(fulltime, 4), fulltime < 0 ? Constant.LanguageData[lang].time_to_empty : Constant.LanguageData[lang].time_to_full, database.getGlobalData.hasPremiumFeature(Constant.Premium.STORAGECAPACITY_BONUS) ? '<img src="/cdn/all/both/premium/b_premium_storagecapacity.jpg" style="width:18px;">' : '', database.getGlobalData.hasPremiumFeature(Constant.Premium.SAFECAPACITY_BONUS) ? '<img src="/cdn/all/both/premium/b_premium_safecapacity.jpg" style="width:18px;">' : '', gold, Constant.LanguageData[lang].safe, Constant.LanguageData[lang].capacity, Constant.LanguageData[lang].maximum, Constant.LanguageData[lang].used, Utils.FormatNumToStr(storage.safe - Math.min(storage.safe, current), false, 0), Utils.FormatNumToStr(storage.capacity - Math.min(storage.capacity, current), false, 0), Constant.LanguageData[lang].missing, Utils.FormatNumToStr(100 - (Math.min(1, current / storage.safe) * 100), false, 2 === 0) ? Utils.FormatNumToStr(100.01 - (Math.min(1, current / storage.safe) * 100), false, 2) + '%' : Utils.FormatNumToStr(100 - (Math.min(1, current / storage.safe) * 100), false, 2) + '%', Utils.FormatNumToStr(100 - (Math.min(1, current / storage.capacity) * 100), false, 2 === 0) ? Utils.FormatNumToStr(100.01 - (Math.min(1, current / storage.capacity) * 100), false, 2) + '%' : Utils.FormatNumToStr(100 - (Math.min(1, current / storage.capacity) * 100), false, 2) + '%']);
         }
         function getConsumptionTooltip(consumption, force) {
           if ((consumption === 0 && !force) || resourceName !== Constant.Resources.WINE) {
             return '';
-          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="skin/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
+          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
             '<tr class="data">\n            <td></td>\n            <td>{4}</td>\n            <td>{5}</td>\n            <td><i>{6}</i></td>\n        <td></td></tr>\n    </tbody>\n</table>',
             [Constant.Resources.WINE, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(-consumption, true, 0), Utils.FormatNumToStr(-consumption * 24, true, 0), Utils.FormatNumToStr(-consumption * 24 * 7, true, 0)]);
         }
@@ -2472,9 +2483,9 @@
             resBonus = database.getGlobalData.hasPremiumFeature(Constant.Premium.CRYSTAL_BONUS);
           if (income === 0 && !force) {
             return '';
-          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="skin/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
+          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
             '<tr class="data">\n        <td>{7}</td>\n        <td>{4}</td>\n        <td>{5}</td>\n        <td><i>{6}</i></td>\n    <td></td></tr>\n    </tbody>\n</table>',
-            [resourceName, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(income, true, 0), Utils.FormatNumToStr(income * 24, false, 0), Utils.FormatNumToStr(income * 24 * 7, false, 0), resBonus ? '<img src="skin/premium/b_premium_' + resName + '.jpg" style="width:18px;">' : '']);
+            [resourceName, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(income, true, 0), Utils.FormatNumToStr(income * 24, false, 0), Utils.FormatNumToStr(income * 24 * 7, false, 0), resBonus ? '<img src="/cdn/all/both/premium/b_premium_' + resName + '.jpg" style="width:18px;">' : '']);
         }
         function getProductionConsumptionSubSumTip(income, consumption, force) {
           if (income === 0 && consumption === 0 && !force) {
@@ -2483,14 +2494,14 @@
             return getProductionTip(income, force);
           } else if (income === 0) {
             return getConsumptionTooltip(consumption, force);
-          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="skin/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
+          } else return Utils.format('<table>\n    <thead>\n    <th><div align="center">\n <img src="/cdn/all/both/resources/icon_{0}.png" style="height: 14px;">  <td><b>{1}</b></td><td><b>{2}</b></td><td><b>{3}</b></div><td></td></th>\n    </thead>\n    <tbody>\n  ' +
             '<tr class="data">\n            <td>{14}</td>\n        <td>{4}</td>\n            <td>{5}</td>\n            <td><i>{6}</i></td>\n        <td></td></tr>\n    ' +
             '<tr class="data">\n            <td></td>\n            <td>{7}</td>\n            <td>{8}</td>\n            <td><i>{9}</i></td>\n        <td></td></tr>\n    </tbody><tfoot> ' +
             '<tr class="total">\n           <td>{10}</td>\n        <td>{11}</td>\n           <td>{12}</td>\n           <td><i>{13}</i></td>\n       <td></td></tr>\n    </tfoot>\n</table>',
-            [resourceName, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(income, true, 0), Utils.FormatNumToStr(income * 24, false, 0), Utils.FormatNumToStr(income * 24 * 7, false, 0), Utils.FormatNumToStr(-consumption, true, 0), Utils.FormatNumToStr(-consumption * 24, true, 0), Utils.FormatNumToStr(-consumption * 24 * 7, true, 0), (income > consumption ? '\u03A3 +&nbsp;' : '\u03A3 -&nbsp;'), Utils.FormatNumToStr((income - consumption), false, 0), Utils.FormatNumToStr((income - consumption) * 24, false, 0), Utils.FormatNumToStr((income - consumption) * 24 * 7, false, 0), database.getGlobalData.hasPremiumFeature(Constant.Premium.WINE_BONUS) ? '<img src="skin/premium/b_premium_wine.jpg" style="width:18px;">' : '']);
+            [resourceName, '1 ' + Constant.LanguageData[lang].hour, '1 ' + Constant.LanguageData[lang].day, '1 ' + Constant.LanguageData[lang].week, Utils.FormatNumToStr(income, true, 0), Utils.FormatNumToStr(income * 24, false, 0), Utils.FormatNumToStr(income * 24 * 7, false, 0), Utils.FormatNumToStr(-consumption, true, 0), Utils.FormatNumToStr(-consumption * 24, true, 0), Utils.FormatNumToStr(-consumption * 24 * 7, true, 0), (income > consumption ? '\u03A3 +&nbsp;' : '\u03A3 -&nbsp;'), Utils.FormatNumToStr((income - consumption), false, 0), Utils.FormatNumToStr((income - consumption) * 24, false, 0), Utils.FormatNumToStr((income - consumption) * 24 * 7, false, 0), database.getGlobalData.hasPremiumFeature(Constant.Premium.WINE_BONUS) ? '<img src="/cdn/all/both/premium/b_premium_wine.jpg" style="width:18px;">' : '']);
         }
         function getImage(unitID) {
-          return (Constant.UnitData[unitID].type == 'fleet') ? 'skin/characters/fleet/60x60/' + unitID + '_faceright.png' : 'skin/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
+          return (Constant.UnitData[unitID].type == 'fleet') ? '/cdn/all/both/characters/fleet/60x60/' + unitID + '_faceright.png' : '/cdn/all/both/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
         }
       }
     },
@@ -3019,8 +3030,8 @@
       //var header = '<colgroup span="3"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="wonder"></th>\n    <th class="empireactions">\n       <div class="trading" data-tooltip="'+ Constant.LanguageData[lang].transport +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="'+ Constant.LanguageData[lang].agora +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="'+ Constant.LanguageData[lang].member +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="'+ Constant.LanguageData[lang].satisfaction +'"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
       var header = '<colgroup span="2"/>\n      <colgroup span="1"/>\n    <colgroup span="1"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="empireactions">\n       <div class="trading" data-tooltip="' + Constant.LanguageData[lang].transport + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="' + Constant.LanguageData[lang].agora + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="' + Constant.LanguageData[lang].member + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="' + Constant.LanguageData[lang].satisfaction + '"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
       var table = '<table class="resources">\n    {0}\n   <tbody>{1}</tbody>\n    <tfoot>{2}</tfoot>\n</table>';
-      //var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n        <td class="wonder" data-tooltip="dynamic"  style="cursor:pointer;">\n        <div class="wonder" style="background: url(skin/wonder/w{7}.png) no-repeat center center; background-size: {8}px auto;"></div></td>\n    <td class="empireactions">\n        <div class="worldmap" data-tooltip="'+ Constant.LanguageData[lang].to_world +'" style="cursor:pointer;"></div>        <div class="city" data-tooltip="'+ Constant.LanguageData[lang].to_town_hall +' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="'+ Constant.LanguageData[lang].to_island +'" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="'+ Constant.LanguageData[lang].to_saw_mill +'" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(skin/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="'+ Constant.LanguageData[lang].to_mine +'"></div>\n <div class="transport" data-tooltip="'+ Constant.LanguageData[lang].transporting +' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
-      var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n          <td class="empireactions">\n        <div class="worldmap" data-tooltip="' + Constant.LanguageData[lang].to_world + '" style="cursor:pointer;"></div>        <div class="city" data-tooltip="' + Constant.LanguageData[lang].to_town_hall + ' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="' + Constant.LanguageData[lang].to_island + '" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="' + Constant.LanguageData[lang].to_saw_mill + '" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(skin/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="' + Constant.LanguageData[lang].to_mine + '"></div>\n <div class="transport" data-tooltip="' + Constant.LanguageData[lang].transporting + ' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
+      //var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n        <td class="wonder" data-tooltip="dynamic"  style="cursor:pointer;">\n        <div class="wonder" style="background: url(/cdn/all/both/wonder/w{7}.png) no-repeat center center; background-size: {8}px auto;"></div></td>\n    <td class="empireactions">\n        <div class="worldmap" data-tooltip="'+ Constant.LanguageData[lang].to_world +'" style="cursor:pointer;"></div>        <div class="city" data-tooltip="'+ Constant.LanguageData[lang].to_town_hall +' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="'+ Constant.LanguageData[lang].to_island +'" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="'+ Constant.LanguageData[lang].to_saw_mill +'" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="'+ Constant.LanguageData[lang].to_mine +'"></div>\n <div class="transport" data-tooltip="'+ Constant.LanguageData[lang].transporting +' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
+      var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n          <td class="empireactions">\n        <div class="worldmap" data-tooltip="' + Constant.LanguageData[lang].to_world + '" style="cursor:pointer;"></div>        <div class="city" data-tooltip="' + Constant.LanguageData[lang].to_town_hall + ' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="' + Constant.LanguageData[lang].to_island + '" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="' + Constant.LanguageData[lang].to_saw_mill + '" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="' + Constant.LanguageData[lang].to_mine + '"></div>\n <div class="transport" data-tooltip="' + Constant.LanguageData[lang].transporting + ' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
       var resourceCell = '<td class="resource {0}">\n    <span class="icon safeImage"></span>\n    <span class="current"></span>\n   <span class="incoming" data-tooltip="dynamic"></span>\n    <div class="progressbar ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n    <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n    </div>\n  </td>\n<td class="resource {0}">\n    <span class="prodconssubsum production Green" data-tooltip="dynamic"></span>\n    <span class="prodconssubsum consumption Red" data-tooltip="dynamic"></span>\n    <span class="emptytime Red"></span>\n</td>';
       //var footer = '<tr>\n    <td colspan="3"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
       var footer = '<tr>\n    <td colspan="2"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
@@ -3122,7 +3133,7 @@
       }
 
       function getImage(unitID) {
-        return (Constant.UnitData[unitID].type == 'fleet') ? 'skin/characters/fleet/60x60/' + unitID + '_faceright.png' : 'skin/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
+        return (Constant.UnitData[unitID].type == 'fleet') ? '/cdn/all/both/characters/fleet/60x60/' + unitID + '_faceright.png' : '/cdn/all/both/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
       }
     },
     getBuildingTable: function () {
@@ -3499,21 +3510,21 @@
       var that = this;
       if (!this.mainContentBox) { //<li><a href="#WorldmapTab" data-tooltip="Not yet implemented">Worldmap</a></li>
         $("#container").after('<div id="empireBoard" class="ui-widget" style="display:none;z-index:' + (database.settings.onTop.value ? 65112 : 61) + ';position: absolute; left:70px;top:180px;">\
-                                  <div id="empire_Tabs">\
-                                    <ul>\
-                                      <li><a href="#ResTab">'+ Constant.LanguageData[lang].economy + '</a></li>\
-                                      <li><a href="#BuildTab">'+ Constant.LanguageData[lang].buildings + '</a></li>\
-                                      <li><a href="#ArmyTab">'+ Constant.LanguageData[lang].military + '</a></li>\
-                                      <li><a href="#SettingsTab" data-tooltip="'+ Constant.LanguageData[lang].options + '"><span class="ui-icon ui-icon-gear"/></a></li>\
-                                      <li><a href="#HelpTab" data-tooltip="'+ Constant.LanguageData[lang].help + '"><span class="ui-icon ui-icon-help"/></a></li>\
-                                    </ul>\
-                                    <div id="ResTab"></div>\
-                                    <div id="BuildTab"></div>\
-                                    <div id="ArmyTab"></div>\
-                                    <div id="WorldmapTab"></div>\
-                                    <div id="SettingsTab"></div>\
-                                    <div id="HelpTab"></div>\
-                                  </div>\
+                                    <div id="empire_Tabs">\
+                                        <ul>\
+                                            <li><a href="#ResTab">'+ Constant.LanguageData[lang].economy + '</a></li>\
+                                            <li><a href="#BuildTab">'+ Constant.LanguageData[lang].buildings + '</a></li>\
+                                            <li><a href="#ArmyTab">'+ Constant.LanguageData[lang].military + '</a></li>\
+                                            <li><a href="#SettingsTab" data-tooltip="'+ Constant.LanguageData[lang].options + '"><span class="ui-icon ui-icon-gear"/></a></li>\
+											<li><a href="#HelpTab" data-tooltip="'+ Constant.LanguageData[lang].help + '"><span class="ui-icon ui-icon-help"/></a></li>\
+                                        </ul>\
+                                        <div id="ResTab"></div>\
+                                        <div id="BuildTab"></div>\
+                                        <div id="ArmyTab"></div>\
+										<div id="WorldmapTab"></div>\
+                                        <div id="SettingsTab"></div>\
+                                        <div id="HelpTab"></div>\
+                                    </div>\
                                 </div>');
         this.mainContentBox = $("#empireBoard");
         this.$tabs = $("#empire_Tabs").tabs({ collapsible: true, show: null, selected: -1 });
@@ -3812,7 +3823,7 @@
         rows = this.getAllRowsForCity(city);
       }
       rows.find('span.ap').text(city.getAvailableActions + '/' + city.maxAP);
-      rows.find('span.garrisonlimit img').attr('src', 'skin/advisors/military/bang_soldier.png');
+      rows.find('span.garrisonlimit img').attr('src', '/cdn/all/both/advisors/military/bang_soldier.png');
     },
     setFinanceData: function (city, row) {
       if (!row) {
@@ -3843,7 +3854,7 @@
       } else {
         img = 'ecstatic';
       }
-      row.find('td.population_happiness span img').attr('src', 'skin/smilies/' + img + '_x25.png');
+      row.find('td.population_happiness span img').attr('src', '/cdn/all/both/smilies/' + img + '_x25.png');
       row.find('span.growth').text(popDiff !== 0 ? Utils.FormatNumToStr(populationData.growth, true, 2) : '0' + Constant.LanguageData[lang].decimalPoint + '00');
       row.find('span.growth').removeClass('Red Green').addClass(populationData.happiness > 60 && popDiff === 0 ? 'Red' : populationData.happiness > 0 && populationData.happiness <= 60 && popDiff > 0 ? 'Green' : '');
     },
@@ -4001,14 +4012,14 @@
   }
   render.LoadCSS = function () {
     //Main Css
-    GM_addStyle('/* Global board styles */\n #js_GlobalMenu_wood, #js_GlobalMenu_wine, #js_GlobalMenu_marble, #js_GlobalMenu_crystal, #js_GlobalMenu_sulfur {font-size:95%; position:absolute; top:0px; right:5px}\n span.resourceProduction {font-size:85%;position:absolute;right:5px; padding-top: 13px}\n #empireBoard .clickable {\n    color: #542c0f;\n    font-weight: 600; }\n#empireBoard .clickable:hover, #empireBoard .clickbar:hover {\n    cursor: pointer;\n    text-decoration: underline; }\n#empireBoard .Bold, #empireBoard .Red, #empireBoard .Blue, #empireBoard .Green {\n    font-weight: normal; }\n#empireBoard .Green {\n    color: green !important; }\n#empireBoard .Red {\n    color: red !important; }\n#empireBoard .Blue {\n    color: blue !important; }\n#empireBoard .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard .safeImage {\n    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAJCAYAAAD+WDajAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAEFJREFUeNpi/P//PwMIhOrzQhhAsPriZ0YQzYQugcxnQhaE6YABxhA9HhRdyICJAQ/AayzxOtFdzYRuFLIVAAEGANwqFwuukYKqAAAAAElFTkSuQmCC");\n    background-size: auto auto !important; }\n#empireBoard .transportImage {\n    background-image: url(skin/actions/transport.jpg); }\n#empireBoard .tradeImage {\n    background-image: url(skin/actions/trade.jpg); }\n#empireBoard .plunderImage {\n    background-image: url(skin/actions/plunder.jpg); }\n#empireBoard .merchantImage {\n    background-image: url(skin/minimized/merchantNavy.png);\n    background-position: 0 -5px; }\n#empireBoard .woodImage {\n    background-image: url(skin/resources/icon_wood.png);}\n#empireBoard .wineImage {\n    background-image: url(skin/resources/icon_wine.png); }\n#empireBoard .marbleImage {\n    background-image: url(skin/resources/icon_marble.png); }\n#empireBoard .sulfurImage {\n    background-image: url(skin/resources/icon_sulfur.png); }\n#empireBoard .goldImage {\n    background-image: url(skin/resources/icon_gold.png); }\n#empireBoard .glassImage {\n    background-image: url(skin/resources/icon_glass.png); }\n#empireBoard .sawMillImage {\n    background-image: url(skin/characters/y100_worker_wood_faceleft.png); }\n#empireBoard .mineImage {\n    background-image: url(skin/characters/y100_worker_tradegood_faceleft.png); }\n#empireBoard .researchImage {\n    background-image: url(skin/layout/bulb-on.png); }\n#empireBoard .populationImage {\n    background-image: url(skin/resources/icon_population.png); }\n#empireBoard .goldImage {\n    background-image: url(skin/resources/icon_gold.png); }\n#empireBoard .expensesImage {\n    background-image: url(skin/resources/icon_upkeep.png); }\n#empireBoard .happyImage {\n    background-image: url(skin/smilies/happy.png); }\n#empireBoard .actionpointImage {\n    background-image: url(skin/resources/icon_actionpoints.png); }\n#empireBoard .growthImage {\n    background-image: url(skin/icons/growth_positive.png); }\n#empireBoard .scientistImage {\n    background-image: url(skin/characters/40h/scientist_r.png); }\n#empireBoard .priestImage {\n    background-image: url(skin/characters/40h/templer_r.png); }\n#empireBoard .citizenImage {\n    background-image: url(skin/characters/40h/citizen_r.png); }\n#empireBoard .cityIcon {\n    background-image: url(skin/icons/city_30x30.png); }\n#empireBoard .governmentIcon {\n    background-image: url(skin/government/zepter_20.png); }\n#empireBoard .researchIcon {\n    background-image: url(skin/icons/researchbonus_30x30.png); }\n#empireBoard .tavernIcon {\n    background-image: url(skin/buildings/tavern_30x30.png); }\n#empireBoard .culturalIcon {\n    background-image: url(skin/interface/icon_message_write.png); }\n#empireBoard .museumIcon {\n    background-image: url(skin/buildings/museum_30x30.png); }\n#empireBoard .incomeIcon {\n    background-image: url(skin/icons/income_positive.png); }\n#empireBoard .crownIcon {\n    background-image: url(skin/layout/crown.png); }\n#empireBoard .corruptionIcon {\n    background-image: url(skin/icons/corruption_24x24.png); }\n#empireBoard #empireTip {\n    display: none;\n    position: absolute;\n    top: 0;\n    left: 0;\n    z-index: 99999999; }\n#empireBoard #empireTip .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 16px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .icon2 {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 24px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .content {\n    background-color: #fae0ae;\n    border: 1px solid #e4b873;\n    position: relative;\n    overflow: hidden;\n    text-align: left;\n    word-wrap: break-word; }\n#empireBoard #empireTip .content table {\n    width: 100%; }\n#empireBoard #empireTip .content table tr.data {\n    background-color:  	#FFFAF0; }\n#empireBoard #empireTip .content table tr.total {\n     background: #E7C680 url(skin/input/button.png) repeat-x scroll 0 0; }\n#empireBoard #empireTip .content table td {\n    padding: 2px;\n    height: auto !important;\n    text-align: right; }\n#empireBoard #empireTip .content table th {\n    padding: 2px;\n    height: auto !important;\n    text-align: center;\n    font-weight: bold;  background: #F8E7B3 url(skin/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table tbody td {\n background-color: #FFFAF0;}\n#empireBoard #empireTip .content table tbody td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table tfoot {\n  line-height: 12px !important;  border-top: 3px solid #fdf7dd; }\n#empireBoard #empireTip .content table tfoot td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table thead {\n    background: #F8E7B3 url(skin/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table thead th.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table tbody td.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table th.nolf, #empireBoard #empireTip .content table td.nolf {\n    border-left: none; }\n#empireBoard #empireTip .content th.lfdash, #empireBoard #empireTip .content td.lfdash {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empireTip .content table tr.small td {\n    height: auto !important;\n    padding-top: 1px;\n    font-size: 10px !important;\n    line-height: 15px !important; }\n#empireBoard #empire_Tabs table {\n    width: 100% !important;\n    text-align: center;\n    border: 1px solid #ffffff; }\n#empireBoard #empire_Tabs table colgroup {\n    border-left: 1px solid #e4b873; }\n#empireBoard #empire_Tabs table colgroup:first-child {\n    border: none !important; }\n#empireBoard #empire_Tabs table colgroup col {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empire_Tabs table thead {\n    background: #f8e7b3 url(skin/input/button.png) repeat-x scroll 0 bottom; }\n#empireBoard #empire_Tabs table thead tr {\n    height: 30px; }\n#empireBoard #empire_Tabs table thead tr th {\n    text-align: center;\n    font-weight: bold;\n    \n    overflow: hidden;\n    white-space: nowrap; }\n#empireBoard #ArmyTab table thead tr th.empireactions {\n  min-width: 20px; width: 50px;}\n#empireBoard #empire_Tabs table thead tr th.icon {\n    min-width: 35px;\n    background-size: auto 20px; }\n#empireBoard #empire_Tabs table tbody tr {\n    border-top: 1px solid #e4b873;}\n#empireBoard #empire_Tabs table tbody tr:nth-child(even) {\n    background-color: #FDF1D4; }\n#empireBoard #empire_Tabs table tbody tr.selected {\n    background-color: #FAE3B8;\n    box-shadow: 0 0 1em #CB9B6A inset; }\n#empireBoard #empire_Tabs table tbody tr:hover {\n    background-color: #fff;\n    box-shadow: 0 0 1em #CB9B6A; }\n#empireBoard #empire_Tabs table tbody tr td.city_name {\n    width: 135px;\n    max-width: 135px;\n    padding-left: 3px;\n    text-align: left;\n    padding-right: 14px; }\n#empireBoard #empire_Tabs table tbody tr td.city_name span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    background-size: 15px auto;\n    margin: 0 2px 0 -1px;\n    height: 16px;\n    cursor: move; }\n   #empireBoard #empire_Tabs table tbody tr td.action_points {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.population {\n  text-align: right;}\n#empireBoard #empire_Tabs  table tbody tr td.sawmill {\n    border-left: 1.5px solid #e4b873; }\n  #empireBoard #empire_Tabs table tbody tr td.sawmillprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.mineprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 17px;\n    min-width: 20px;\n    width: 25px; }\n  #empireBoard #empire_Tabs table tbody tr td.wonder div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: auto 40px;\n    height: 30px;\n    min-width: 30px;\n    width: 30px; }\n	#empireBoard #empire_Tabs table thead tr th.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 20px;\n    min-width: 24px;\n    width: 25px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport {\n    background-image: url("skin/actions/transport.jpg"); float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.worldmap {\n    background-image: url("skin/layout/icon-world.png"); background-size: 16px 16px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.island {\n    background-image: url("skin/layout/icon-island.png"); background-size: 23px 18px; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandwood {\n    background-image: url("skin/resources/icon_wood.png"); background-size: 17px auto; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandgood {\n   float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.city {\n    background-image: url("skin/layout/icon-city2.png"); background-size: auto 21px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.member {\n    background-image: url("skin/characters/y100_citizen_faceright.png"); background-size: auto 20px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.agora {\n    background-image: url("skin/layout/icon-message.png"); background-size: 20px auto; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.trading {\n    background-image: url("skin/characters/fleet/40x40/ship_transport_r_40x40.png"); background-size: 22px 19px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.spio {\n    background-image: url("skin/characters/military/120x100/spy_120x100.png"); background-size: 25px auto; background-position: center center;\n    float: left; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.combat {\n    background-image: url("skin/layout/medallie32x32_gold.png"); background-size: 19px auto; background-repeat: no-repeat;\n    float: right; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.contracts {\n    background-image: url("skin/museum/icon32_culturalgood.png"); background-size: 22px auto; background-position: center center;  background-repeat: no-repeat;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.barracks {\n    background-image: url("skin/buildings/y50/y50_barracks.png"); background-size: 30px auto; background-position: center center; float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.shipyard {\n    background-image: url("skin/buildings/y50/y50_shipyard.png");\n  background-size: 28px auto;   float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy {\n    background-image: url("skin/actions/move_army.jpg");\n    float: left; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet {\n    background-image: url("skin/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_WorldmapTab table tbody tr td.worldmap div.worldmap{ width:829px; height:829px; background-image: url("skin/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr.selected .empireactions div.transport, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentarmy, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentfleet{\n    background-position: 0 17px; }\n#empireBoard #empire_Tabs table tbody tr.current .empireactions div.transport {\n    background-position: 0 px; }\n#empireBoard #empire_Tabs table tfoot {\n    background: #fae0ae;\n    background: #e7c680 url(skin/input/button.png) repeat-x scroll 0 0;\n    border-top: 2px solid #e4b873; }\n#empireBoard #empire_Tabs table tfoot tr td {\n    text-align: right;\n     font-weight: bold;}\n#empireBoard #empire_Tabs table tfoot tr #t_research.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr #t_growth.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr td.total span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #empire_Tabs table tfoot tr td#t_sigma, #empireBoard #empire_Tabs table tfoot tr td.sigma {\n    font-weight: 800;\n    text-align: center; }\n#empireBoard #ResTab div.progressbar .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbar .warning {\n    background: #8F1D1A; }\n#empireBoard #ResTab div.progressbar .almostfull {\n    background: #B42521; }\n#empireBoard #ResTab div.progressbar .full {\n    background: #ff0000; }\n#empireBoard #ResTab div.progressbar .fullGold {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarPop .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarPop .warning {\n    background: #CC3300; }\n#empireBoard #ResTab div.progressbarPop .full {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarSci .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarSci .full {\n    background: #185A39; }\n#empireBoard #ResTab table tr td.gold_income, #empireBoard #ResTab table tr td.resource, #empireBoard #ResTab table tr td.army:nth-child(even) {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span.incoming, #empireBoard #ResTab table tr td.resource span.incoming {\n  color: blue; }\n#empireBoard #ResTab table tr td.gold_unkeep span, #empireBoard #ResTab table tr td.resource span, #empireBoard #ResTab table tr td.army:nth-child(even) span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #ResTab table tr td.gold_income span.icon, #empireBoard #ResTab table tr td.resource span.icon, #empireBoard #ResTab table tr td.army:nth-child(even) span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    height: 9px;\n    padding: 5px 4px 0 0; }\n#empireBoard #ResTab table tr td.gold_income span.current, #empireBoard #ResTab table tr td.resource span.current, #empireBoard #ResTab table tr td.army:nth-child(even) span.current {\n    font-size: 1em;\n    display: inline; }\n#empireBoard #ResTab table tr td.population {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span:nth-child(2), #empireBoard #ResTab table tr td.population span:nth-child(2) {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #BuildTab table tbody tr td {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard #BuildTab table tbody tr td span.maxLevel {\n    color: rgba(84, 44, 15, 0.3); }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon {\n    color: #4169e1;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgradable {\n    color: green;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradable:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgrading {\n    background: url("/skin/icons/arrow_upgrade.png") no-repeat scroll 1px 3px transparent;\n    border-radius: 5px 5px 5px 5px;\n    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);\n    display: inline-block;\n    padding: 2px 5px 1px 20px;\n    margin: 2px; }\n#empireBoard #ArmyTab table colgroup col:nth-child(even) {\n    border-left: none; }\n#empireBoard #SettingsTab .options, #empireBoard #HelpTab .options {\n    float: left;\n    padding: 10px; }\n#empireBoard #SettingsTab .options span.categories, #empireBoard #HelpTab .options span.categories {\n    margin-left: -3px;\n    font-weight: 500; }\n#empireBoard #SettingsTab .options span.categories:not(:first-child), #empireBoard #HelpTab .options span.categories:not(:first-child) {\n    margin-top: 5px; }\n#empireBoard #SettingsTab .options span:not(.clickable), #empireBoard #HelpTab .options span:not(.clickable) {\n    display: block; }\n#empireBoard #SettingsTab .options span label, #empireBoard #HelpTab .options span label {\n    vertical-align: top;\n    padding-left: 5px; }\n#empireBoard #SettingsTab .buttons, #empireBoard #HelpTab .buttons {\n    clear: left;\n    padding: 3px; }\n#empireBoard #SettingsTab .buttons button, #empireBoard #HelpTab .buttons button {\n    margin-left: 3px; }\n\n.toast, .toastAlert {\n    display: none;\n    position: fixed;\n    z-index: 99999;\n    width: 100%;\n    text-align: center;\n    bottom: 5em; }\n\n.toast .message, .toastAlert .message {\n    display: inline-block;\n    color: #4C3000;\n    padding: 5px;\n    border-radius: 5px;\n    box-shadow: 3px 0px 15px 0 #542C0F;\n    -webkit-box-shadow: 3px 0px 15px 0 #542C0F;\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 11px;\n    background: #faf3d7;\n    background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #faf3d7), color-stop(1, #e1b06d)); }\n\ndiv.prog:after {\n    -webkit-animation: move 2s linear infinite;\n    -moz-animation: move 2s linear infinite; }\n\n.prog {\n    display: block;\n    width: 100%;\n    height: 100%;\n    background: #fcf938 -moz-linear-gradient(center bottom, #fcf938 37%, #fcf938 69%);\n    position: relative;\n    overflow: hidden; }\n.prog:after {\n    content: "";\n    position: absolute;\n    top: 0;\n    left: 0;\n    bottom: 0;\n    right: 0;\n    background: -moz-linear-gradient(-45deg, rgba(10, 10, 10, 0.6) 25%, transparent 25%, transparent 50%, rgba(10, 10, 10, 0.6) 50%, rgba(10, 10, 10, 0.6) 75%, transparent 75%, transparent);\n    z-index: 1;\n    -webkit-background-size: 50px 50px;\n    -moz-background-size: 50px 50px;\n    background-size: 50px 50px;\n    -webkit-animation: move 5s linear infinite;\n    -moz-animation: move 5s linear infinite;\n    overflow: hidden; }\n\n.animate > .prog:after {\n    display: none; }\n\n@-webkit-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n\n@-moz-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n');
+    GM_addStyle('/* Global board styles */\n #js_GlobalMenu_wood, #js_GlobalMenu_wine, #js_GlobalMenu_marble, #js_GlobalMenu_crystal, #js_GlobalMenu_sulfur {font-size:95%; position:absolute; top:0px; right:5px}\n span.resourceProduction {font-size:85%;position:absolute;right:5px; padding-top: 13px}\n #empireBoard .clickable {\n    color: #542c0f;\n    font-weight: 600; }\n#empireBoard .clickable:hover, #empireBoard .clickbar:hover {\n    cursor: pointer;\n    text-decoration: underline; }\n#empireBoard .Bold, #empireBoard .Red, #empireBoard .Blue, #empireBoard .Green {\n    font-weight: normal; }\n#empireBoard .Green {\n    color: green !important; }\n#empireBoard .Red {\n    color: red !important; }\n#empireBoard .Blue {\n    color: blue !important; }\n#empireBoard .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard .safeImage {\n    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAJCAYAAAD+WDajAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAEFJREFUeNpi/P//PwMIhOrzQhhAsPriZ0YQzYQugcxnQhaE6YABxhA9HhRdyICJAQ/AayzxOtFdzYRuFLIVAAEGANwqFwuukYKqAAAAAElFTkSuQmCC");\n    background-size: auto auto !important; }\n#empireBoard .transportImage {\n    background-image: url(/cdn/all/both/actions/transport.jpg); }\n#empireBoard .tradeImage {\n    background-image: url(/cdn/all/both/actions/trade.jpg); }\n#empireBoard .plunderImage {\n    background-image: url(/cdn/all/both/actions/plunder.jpg); }\n#empireBoard .merchantImage {\n    background-image: url(/cdn/all/both/minimized/merchantNavy.png);\n    background-position: 0 -5px; }\n#empireBoard .woodImage {\n    background-image: url(/cdn/all/both/resources/icon_wood.png);}\n#empireBoard .wineImage {\n    background-image: url(/cdn/all/both/resources/icon_wine.png); }\n#empireBoard .marbleImage {\n    background-image: url(/cdn/all/both/resources/icon_marble.png); }\n#empireBoard .sulfurImage {\n    background-image: url(/cdn/all/both/resources/icon_sulfur.png); }\n#empireBoard .goldImage {\n    background-image: url(/cdn/all/both/resources/icon_gold.png); }\n#empireBoard .glassImage {\n    background-image: url(/cdn/all/both/resources/icon_glass.png); }\n#empireBoard .sawMillImage {\n    background-image: url(/cdn/all/both/characters/y100_worker_wood_faceleft.png); }\n#empireBoard .mineImage {\n    background-image: url(/cdn/all/both/characters/y100_worker_tradegood_faceleft.png); }\n#empireBoard .researchImage {\n    background-image: url(/cdn/all/both/layout/bulb-on.png); }\n#empireBoard .populationImage {\n    background-image: url(/cdn/all/both/resources/icon_population.png); }\n#empireBoard .goldImage {\n    background-image: url(/cdn/all/both/resources/icon_gold.png); }\n#empireBoard .expensesImage {\n    background-image: url(/cdn/all/both/resources/icon_upkeep.png); }\n#empireBoard .happyImage {\n    background-image: url(/cdn/all/both/smilies/happy.png); }\n#empireBoard .actionpointImage {\n    background-image: url(/cdn/all/both/resources/icon_actionpoints.png); }\n#empireBoard .growthImage {\n    background-image: url(/cdn/all/both/icons/growth_positive.png); }\n#empireBoard .scientistImage {\n    background-image: url(/cdn/all/both/characters/40h/scientist_r.png); }\n#empireBoard .priestImage {\n    background-image: url(/cdn/all/both/characters/40h/templer_r.png); }\n#empireBoard .citizenImage {\n    background-image: url(/cdn/all/both/characters/40h/citizen_r.png); }\n#empireBoard .cityIcon {\n    background-image: url(/cdn/all/both/icons/city_30x30.png); }\n#empireBoard .governmentIcon {\n    background-image: url(/cdn/all/both/government/zepter_20.png); }\n#empireBoard .researchIcon {\n    background-image: url(/cdn/all/both/icons/researchbonus_30x30.png); }\n#empireBoard .tavernIcon {\n    background-image: url(/cdn/all/both/buildings/tavern_30x30.png); }\n#empireBoard .culturalIcon {\n    background-image: url(/cdn/all/both/interface/icon_message_write.png); }\n#empireBoard .museumIcon {\n    background-image: url(/cdn/all/both/buildings/museum_30x30.png); }\n#empireBoard .incomeIcon {\n    background-image: url(/cdn/all/both/icons/income_positive.png); }\n#empireBoard .crownIcon {\n    background-image: url(/cdn/all/both/layout/crown.png); }\n#empireBoard .corruptionIcon {\n    background-image: url(/cdn/all/both/icons/corruption_24x24.png); }\n#empireBoard #empireTip {\n    display: none;\n    position: absolute;\n    top: 0;\n    left: 0;\n    z-index: 99999999; }\n#empireBoard #empireTip .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 16px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .icon2 {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 24px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .content {\n    background-color: #fae0ae;\n    border: 1px solid #e4b873;\n    position: relative;\n    overflow: hidden;\n    text-align: left;\n    word-wrap: break-word; }\n#empireBoard #empireTip .content table {\n    width: 100%; }\n#empireBoard #empireTip .content table tr.data {\n    background-color:  	#FFFAF0; }\n#empireBoard #empireTip .content table tr.total {\n     background: #E7C680 url(/cdn/all/both/input/button.png) repeat-x scroll 0 0; }\n#empireBoard #empireTip .content table td {\n    padding: 2px;\n    height: auto !important;\n    text-align: right; }\n#empireBoard #empireTip .content table th {\n    padding: 2px;\n    height: auto !important;\n    text-align: center;\n    font-weight: bold;  background: #F8E7B3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table tbody td {\n background-color: #FFFAF0;}\n#empireBoard #empireTip .content table tbody td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table tfoot {\n  line-height: 12px !important;  border-top: 3px solid #fdf7dd; }\n#empireBoard #empireTip .content table tfoot td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table thead {\n    background: #F8E7B3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table thead th.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table tbody td.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table th.nolf, #empireBoard #empireTip .content table td.nolf {\n    border-left: none; }\n#empireBoard #empireTip .content th.lfdash, #empireBoard #empireTip .content td.lfdash {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empireTip .content table tr.small td {\n    height: auto !important;\n    padding-top: 1px;\n    font-size: 10px !important;\n    line-height: 15px !important; }\n#empireBoard #empire_Tabs table {\n    width: 100% !important;\n    text-align: center;\n    border: 1px solid #ffffff; }\n#empireBoard #empire_Tabs table colgroup {\n    border-left: 1px solid #e4b873; }\n#empireBoard #empire_Tabs table colgroup:first-child {\n    border: none !important; }\n#empireBoard #empire_Tabs table colgroup col {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empire_Tabs table thead {\n    background: #f8e7b3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom; }\n#empireBoard #empire_Tabs table thead tr {\n    height: 30px; }\n#empireBoard #empire_Tabs table thead tr th {\n    text-align: center;\n    font-weight: bold;\n    \n    overflow: hidden;\n    white-space: nowrap; }\n#empireBoard #ArmyTab table thead tr th.empireactions {\n  min-width: 20px; width: 50px;}\n#empireBoard #empire_Tabs table thead tr th.icon {\n    min-width: 35px;\n    background-size: auto 20px; }\n#empireBoard #empire_Tabs table tbody tr {\n    border-top: 1px solid #e4b873;}\n#empireBoard #empire_Tabs table tbody tr:nth-child(even) {\n    background-color: #FDF1D4; }\n#empireBoard #empire_Tabs table tbody tr.selected {\n    background-color: #FAE3B8;\n    box-shadow: 0 0 1em #CB9B6A inset; }\n#empireBoard #empire_Tabs table tbody tr:hover {\n    background-color: #fff;\n    box-shadow: 0 0 1em #CB9B6A; }\n#empireBoard #empire_Tabs table tbody tr td.city_name {\n    width: 135px;\n    max-width: 135px;\n    padding-left: 3px;\n    text-align: left;\n    padding-right: 14px; }\n#empireBoard #empire_Tabs table tbody tr td.city_name span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    background-size: 15px auto;\n    margin: 0 2px 0 -1px;\n    height: 16px;\n    cursor: move; }\n   #empireBoard #empire_Tabs table tbody tr td.action_points {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.population {\n  text-align: right;}\n#empireBoard #empire_Tabs  table tbody tr td.sawmill {\n    border-left: 1.5px solid #e4b873; }\n  #empireBoard #empire_Tabs table tbody tr td.sawmillprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.mineprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 17px;\n    min-width: 20px;\n    width: 25px; }\n  #empireBoard #empire_Tabs table tbody tr td.wonder div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: auto 40px;\n    height: 30px;\n    min-width: 30px;\n    width: 30px; }\n	#empireBoard #empire_Tabs table thead tr th.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 20px;\n    min-width: 24px;\n    width: 25px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport {\n    background-image: url("/cdn/all/both/actions/transport.jpg"); float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.worldmap {\n    background-image: url("/cdn/all/both/layout/icon-world.png"); background-size: 16px 16px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.island {\n    background-image: url("/cdn/all/both/layout/icon-island.png"); background-size: 23px 18px; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandwood {\n    background-image: url("/cdn/all/both/resources/icon_wood.png"); background-size: 17px auto; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandgood {\n   float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.city {\n    background-image: url("/cdn/all/both/layout/icon-city2.png"); background-size: auto 21px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.member {\n    background-image: url("/cdn/all/both/characters/y100_citizen_faceright.png"); background-size: auto 20px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.agora {\n    background-image: url("/cdn/all/both/layout/icon-message.png"); background-size: 20px auto; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.trading {\n    background-image: url("/cdn/all/both/characters/fleet/40x40/ship_transport_r_40x40.png"); background-size: 22px 19px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.spio {\n    background-image: url("/cdn/all/both/characters/military/120x100/spy_120x100.png"); background-size: 25px auto; background-position: center center;\n    float: left; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.combat {\n    background-image: url("/cdn/all/both/layout/medallie32x32_gold.png"); background-size: 19px auto; background-repeat: no-repeat;\n    float: right; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.contracts {\n    background-image: url("/cdn/all/both/museum/icon32_culturalgood.png"); background-size: 22px auto; background-position: center center;  background-repeat: no-repeat;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.barracks {\n    background-image: url("/cdn/all/both/buildings/y50/y50_barracks.png"); background-size: 30px auto; background-position: center center; float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.shipyard {\n    background-image: url("/cdn/all/both/buildings/y50/y50_shipyard.png");\n  background-size: 28px auto;   float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy {\n    background-image: url("/cdn/all/both/actions/move_army.jpg");\n    float: left; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet {\n    background-image: url("/cdn/all/both/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_WorldmapTab table tbody tr td.worldmap div.worldmap{ width:829px; height:829px; background-image: url("/cdn/all/both/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr.selected .empireactions div.transport, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentarmy, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentfleet{\n    background-position: 0 17px; }\n#empireBoard #empire_Tabs table tbody tr.current .empireactions div.transport {\n    background-position: 0 px; }\n#empireBoard #empire_Tabs table tfoot {\n    background: #fae0ae;\n    background: #e7c680 url(/cdn/all/both/input/button.png) repeat-x scroll 0 0;\n    border-top: 2px solid #e4b873; }\n#empireBoard #empire_Tabs table tfoot tr td {\n    text-align: right;\n     font-weight: bold;}\n#empireBoard #empire_Tabs table tfoot tr #t_research.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr #t_growth.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr td.total span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #empire_Tabs table tfoot tr td#t_sigma, #empireBoard #empire_Tabs table tfoot tr td.sigma {\n    font-weight: 800;\n    text-align: center; }\n#empireBoard #ResTab div.progressbar .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbar .warning {\n    background: #8F1D1A; }\n#empireBoard #ResTab div.progressbar .almostfull {\n    background: #B42521; }\n#empireBoard #ResTab div.progressbar .full {\n    background: #ff0000; }\n#empireBoard #ResTab div.progressbar .fullGold {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarPop .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarPop .warning {\n    background: #CC3300; }\n#empireBoard #ResTab div.progressbarPop .full {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarSci .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarSci .full {\n    background: #185A39; }\n#empireBoard #ResTab table tr td.gold_income, #empireBoard #ResTab table tr td.resource, #empireBoard #ResTab table tr td.army:nth-child(even) {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span.incoming, #empireBoard #ResTab table tr td.resource span.incoming {\n  color: blue; }\n#empireBoard #ResTab table tr td.gold_unkeep span, #empireBoard #ResTab table tr td.resource span, #empireBoard #ResTab table tr td.army:nth-child(even) span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #ResTab table tr td.gold_income span.icon, #empireBoard #ResTab table tr td.resource span.icon, #empireBoard #ResTab table tr td.army:nth-child(even) span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    height: 9px;\n    padding: 5px 4px 0 0; }\n#empireBoard #ResTab table tr td.gold_income span.current, #empireBoard #ResTab table tr td.resource span.current, #empireBoard #ResTab table tr td.army:nth-child(even) span.current {\n    font-size: 1em;\n    display: inline; }\n#empireBoard #ResTab table tr td.population {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span:nth-child(2), #empireBoard #ResTab table tr td.population span:nth-child(2) {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #BuildTab table tbody tr td {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard #BuildTab table tbody tr td span.maxLevel {\n    color: rgba(84, 44, 15, 0.3); }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon {\n    color: #4169e1;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgradable {\n    color: green;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradable:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgrading {\n    background: url("//cdn/all/both/icons/arrow_upgrade.png") no-repeat scroll 1px 3px transparent;\n    border-radius: 5px 5px 5px 5px;\n    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);\n    display: inline-block;\n    padding: 2px 5px 1px 20px;\n    margin: 2px; }\n#empireBoard #ArmyTab table colgroup col:nth-child(even) {\n    border-left: none; }\n#empireBoard #SettingsTab .options, #empireBoard #HelpTab .options {\n    float: left;\n    padding: 10px; }\n#empireBoard #SettingsTab .options span.categories, #empireBoard #HelpTab .options span.categories {\n    margin-left: -3px;\n    font-weight: 500; }\n#empireBoard #SettingsTab .options span.categories:not(:first-child), #empireBoard #HelpTab .options span.categories:not(:first-child) {\n    margin-top: 5px; }\n#empireBoard #SettingsTab .options span:not(.clickable), #empireBoard #HelpTab .options span:not(.clickable) {\n    display: block; }\n#empireBoard #SettingsTab .options span label, #empireBoard #HelpTab .options span label {\n    vertical-align: top;\n    padding-left: 5px; }\n#empireBoard #SettingsTab .buttons, #empireBoard #HelpTab .buttons {\n    clear: left;\n    padding: 3px; }\n#empireBoard #SettingsTab .buttons button, #empireBoard #HelpTab .buttons button {\n    margin-left: 3px; }\n\n.toast, .toastAlert {\n    display: none;\n    position: fixed;\n    z-index: 99999;\n    width: 100%;\n    text-align: center;\n    bottom: 5em; }\n\n.toast .message, .toastAlert .message {\n    display: inline-block;\n    color: #4C3000;\n    padding: 5px;\n    border-radius: 5px;\n    box-shadow: 3px 0px 15px 0 #542C0F;\n    -webkit-box-shadow: 3px 0px 15px 0 #542C0F;\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 11px;\n    background: #faf3d7;\n    background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #faf3d7), color-stop(1, #e1b06d)); }\n\ndiv.prog:after {\n    -webkit-animation: move 2s linear infinite;\n    -moz-animation: move 2s linear infinite; }\n\n.prog {\n    display: block;\n    width: 100%;\n    height: 100%;\n    background: #fcf938 -moz-linear-gradient(center bottom, #fcf938 37%, #fcf938 69%);\n    position: relative;\n    overflow: hidden; }\n.prog:after {\n    content: "";\n    position: absolute;\n    top: 0;\n    left: 0;\n    bottom: 0;\n    right: 0;\n    background: -moz-linear-gradient(-45deg, rgba(10, 10, 10, 0.6) 25%, transparent 25%, transparent 50%, rgba(10, 10, 10, 0.6) 50%, rgba(10, 10, 10, 0.6) 75%, transparent 75%, transparent);\n    z-index: 1;\n    -webkit-background-size: 50px 50px;\n    -moz-background-size: 50px 50px;\n    background-size: 50px 50px;\n    -webkit-animation: move 5s linear infinite;\n    -moz-animation: move 5s linear infinite;\n    overflow: hidden; }\n\n.animate > .prog:after {\n    display: none; }\n\n@-webkit-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n\n@-moz-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n');
     if (database.settings.compressedBuildingList.value) GM_addStyle('#empireBoard #BuildTab table tbody tr td.building.forester0:not(:empty) {\n background-image: url(data:image/png;base64,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hNa9c9athM61a8WtjNacWsWca86UWrWUa72UUs6MSrWEUq17UqV7Wox7a5xzUoxrUnNra3NrWntjUmNaUlJKSgAAAIa/w40AAAAhdFJOU///////////////////////////////////////////AJ/B0CEAAAAJcEhZcwAACxIAAAsSAdLdfvwAAAEsSURBVHicXZDNjtswDISHP4ost8Ve9lYYu+//VoGxtwDtJfU6EsnSCdCmJQTw8IkzQ+o7jjozNbn6gr+lj8YRe53t/PY/WSPQZWJ9QneyyiB2QCrW5R8SXnd2Dyo6Pr4/E348IR2lXF6fiJjCWFWCHHLZlj9EbTC7SP6IEVO5K97JrTAckwyAeId+O3IkOYNnmDT6vBWizOf65ZhZ0QQ4KfvPK9eJnDTk4UMGGin2a0MqtW7KdCe5fTib37bWRcYoCGPODMqZGX4ij714wE41Ri8vl01RXPhYlHyvluvAp921saabAS7axXpRMerz1zh8alft2ctgdStpk5PSlfU6HTeeWXse24uapMaIDL+sldrMoJcf4NZIc4/Usq5YPhoGG3H9hOynkkmTbP4beIqL5HGYwHAAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 17px 17px}\n#empireBoard #BuildTab table tbody tr td.building.winegrower0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAYAAAB4d5a9AAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAABQRJREFUOMuV1MuOHFcBxvH/OXWqurqqu6vdM56LZ3wZC5w4G8OCBSAQCCkSEjs2bBBSFlGMxIKd90hIvACWeAUktjwCQjFJhBNMhtie8fSkZ3r6Xvc6dc5hwYaFjcj3AP/f7lO8YcX8BZ7qPFxMP//9p+MPeTb7J23jcyMZcf/GPRbFnLTc8M2b32V3/8EvTVs97m4dvbal3oQ4Y0E6yqJgPJ+xTgvAMtMNx7mmcRW+ryhNhjY1ranelHo9orMrVJiE6fLkrXU9Z1VO0brGU4Lalqz0DOEbnIpZBjOGXkrj8q+GGF2CtT/J8vEHJ/VTTKdE1gLnBNZYdFPTESFeENDQoJ1Gu+arIQAOZz3p235vSCeaUBYtrXaUmcE5h0g0XQFN5jAJtJr/H6mzKSAinIkDf+c0zPbfDuRzgm6FaR1VZslmDnEA/X5Ar7NF38Tf34v2F222+rNzduP3R/8bsbpEeP6Pi+X4D+cnZ+EXH51xpS11CBZBMQe77lBHIVVkSasLzk7/9rNef/jT/tbtx73B4W+yzXTWG+y8HtHVHNXph+V8/L3F+UX49Mkzzk5mrCtBGA8JE0FgHG3XIFSJ2mk4LRd8/I9P2D3o+/f51q9uCRcn/VuP/htSALZZAiK2unq3Xpz/oLw4f3/xfMrkyyV5VXM9HvLO3j7KF1hhSW3Gy3RMXhSEMZioJfVrxuavgjnvHToYJbceZel01uvvoNpq0W/q8kdllv8wnZ+/v766CrPTBek8w5eSuNNh1OshBMSqg5CS5TKnsgIuQOxCnChMBWmz5ovqL8K04j3hBMng8FG6uZypJlv9bjOb/OL5i9Po2dPPOT27gFbwnaO7PDg4YFmWSCkpm5rxZkleN8yKDYO3fAZJRKsrZGCoU0e2dqhww8v6Q6E8+Z7viYvR8P5vVXH16uHl30/47NNjpqsNurZEgU/aVCRxxG6SsCoK5nXDvyaXTLOMOFHc3tlChYa8AuEE0RZIKTCNI+/MuXRPxG69++uoGh4rXaaIquXta9e5k4xY1TWx73OZbfjo7BWDTkimNfM0RbcGTwqGOz7Jnseq0hhjUYCnBEKAaaCtHZldMTHHUccd7KvWWPKmBiEY9npsDQbgHKuy4HhxSVZVaGsZdEMOt0cYYQj2S9pgTZs34AALtgYZgghA55AWFavehEqsUFmRc3w55eJqxXaSsNfr4Xsem7phWZZsioLtfp+v7e1xmAzRXsM8uSTfrDDWISRY45BW4EmwgBeAtQ6DxmJQSsO1KOKlvuLldEpRlgSeR9223EgSpIDr/T5HW1sMOiHnm5qrVxXCaKItiW4N64VjuC/oh5JaO6x1oAVSd5BOobJXOZFQxN0O803KYZIw6vWojUGbluPZlHVecjKf0REeZ4slxD637t4gcHA5zsgmGVHcIg8EnudopcOrQ5LikG4zQk1WCybrDUXdUOmWQmv2g4BICBZ5ThxGSF8hQ8WqLImSLl8/usm9u4coKZisJnySPcepKZ7X0lUS3Vh8EXBNbhOLHurmN45IP3vOnue4di1Gh4JxmaK0wzhLMuryzt277OxsIX0fKSRR3C97w93HUgj6vd2Hnduj7lg8xbhzrKyRQhJ4IUr6CCFQRw++TRh1qPP1fw4SwXxZMXkxI4ljbt4bsXPrwA227/wxCKMngOfgS+EFf0IIBt3ux3eS7Z+7sXl3nBeY3hQhwPdCpJDg4N+FYbSjpEdluAAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 17px 17px}\n#empireBoard #BuildTab table tbody tr td.building.stonemason0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAMAAABPqWaPAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAGBQTFRFAAAA8d/I6N/WzcS26NG27Nq68ezjv7Gotq2fyLqk1s3EqJqRraSWsaSW2sit0c2/pJaIrZ+Rn5GDqJqN49bE39rR7Ojaloh639bIxLqtsZ+R+vXxsaia39HEjX9xsaSaTMajHAAAAAF0Uk5TAEDm2GYAAAAJcEhZcwAAAEgAAABIAEbJaz4AAADqSURBVChTpdDRboMwDAVQcBoTEqgDrkMAk/7/XzZM2tpufdt99NGVZTfNf9OCudhPYBE6138g69GHYeyvf4AAKYYhTL/Mkgf0M08hcnijmxFJZolVIvevlUwisHKc47u0IpT9Skhb7cSntAAnGNxFtdpTEmTyhiTtnlXHsb+8islIaTfzKcrXH/EkCCbt3aLOOVX9llSPSfkA1BLU6aTuHNsWs5cE4gXwXnjbmL86FjA7t66GThnKzMxx2yrcAKXuHIPr/ClLpfqgxh6ShOKkyjG6nO6lLHwe2xz1J55inIYwL+EALqXMNcsD5M0SNKvkKqsAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.glassblowing0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAYAAAB4d5a9AAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAABJxJREFUOBG9wcuKZGcBwPH/dz3n1DlVXdXVPe3ETHomMQaSjYLEUYgv4CZP4VpGwQjZZOvChxDyFBJcBATNQjfiIgbNMEmc7uq6nfv5bjJCgwxMsvP3g/8DwTdw3RYQ8zg1b4cQTKMqTIrkTE4Z+2egttUdvo7ma4Rui9Sm7Jvtz7tm9+s2SH1QkozAWg1jWc7fTYmP+AaaF/DtBill2da7R9vD7v0ntbNHc8EkC3IZiJnUImXvrBYnH3ddPc1mc15E8wLj2CGFfLg97N77y5Wz2zTHFBmZkURheDJpoTr/y0Ttk+8/6XZPfGbzTxIcdXnG/9KuvTlxU/+DPkg7qgxFYiGGKa+qP17dHO0XjTePW4nMFGVISJmAQKsE/x5U2Q37D1y7Cy/Nzbhart+NKX3Ec7Sfuneaev/h08kUo52jCTgx+NLzGyPiaYjJxCiwUqGVJCZwISGFZDvBv652srm5kt9/sNb5ib4/jAPP04Pz+VXrsn8MpRG5RYrERmhzMbXvr0SDjgNSFCgh0BLGEEhSEBP0XcfjL27wfct07zTFRJsQPE8HNXurS40dMcgoUVJQY5icVrUuaBNEEiklIhGXIkSQDrabaw6HIzPpyYUXWRrfPFuflq69aU255paMQp4GlMiNpLAKKUAIGDHsYklnzojSMsXI6CISiUqCpm7Yba4JbsLmOcJkwo3tr/p2/0gIWU7NNbfkFCWNlygSF5Uh15KU+K+QQNkCYwuUtrgUiSnhXGCz3dLUNcUs5/LBJdXFA3pV2rE7vueG+mGYOm7JTPjrLA3ppm5IMbDMNTEmfIj4GBl8ososhVaYFOndwM1+R725QmnNnW/f4+TsLk6XRDsnRm9SnGwKjlvSCv+301x2wnV8frVDi0hhBD4mXEgMPoFULHPNMtcI5/BDQzXLeOXykrOLu3zZeD7bdAwBktQkNFFobslqNv/9+uTkt/fnKe0Oe77at5RWIgU4nxh9oO5HpFLkNsM7h02OV1/5Fm+9dsnd1YIgYNP1NF7Sy4UOMvtxWVala655Ro79oVnl+g+vLnV7nk082R459hMzq4gkfIhMIbDvHTElTnLNd++/zJuv3eflszmnpeW8LMi0YoySYzCia/ePur7/0Tj2PCONLRYIOV/Ol399YynB9zzd1xQ6oUWiGXq0jLTTQDNFLs9P+d7lXc4XM5QUOB+5t8z4zqpi8oLHTeTLLszGwE/L+bKcmg3ST/1PDofN7z7ftw8HNWc+K+nHkWPbU1lJZiTCGJQ1LErLS+uKKCW9S8gkaKeA1ZJ1Zeh85HpM1Mky9Yefjc3+h37qkM45u+/H/NMa/dlYYYqKRVVQT5HCaF6/s+SsynnjbMHr64Jn/rkdeFo7YoRMSVICAeQK+gBfdZpt54suqreL1T2ljbXjIjNTVTfZ3w+JrFqwynMW1rAqDOvS0IWc89wiBXx6M+JCZF1KaufZ947cS0QUrGaa4iA4tp62sKJP5heyH/4k89ni46xaf5iJhNtfMY0Dwzgx+QEjA1oLVoWhMBJSYpo8uRIYJRhcwihBTInBB6wSnGWK09JgZwsm7NxHsfoPqKt+g05SC1UAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.alchemist0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAMAAABPqWaPAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAGBQTFRFAAAA8d+/9d+W1rZ638Sa8dq29ei69dqD48h60baN9eOf+uzR+uio7NatupZs8d+f+uOR6NGRza1sv5pfrY1oyKRj7Naa//G6/+yftpFa//r1/+yopH9RrYhW2rpx7NGDIqezSAAAAAF0Uk5TAEDm2GYAAAAJcEhZcwAAAEgAAABIAEbJaz4AAAD4SURBVCiRpY/ZcsMwCEUdLQZL3iQZO8RC+v+/jJpMm2mat/IGZw4Xuu6fdVHafAS2BxzsJ9IrcGawf5kfQVllBvOGrPdKTQa1nt82Wr+svQ8xprTRr7Muu3L+uGLiVvPLutz8ovrjvCrizFG26Sf9tjt3nOsKJYkUnTfzrUzVja42gJozVcr5MW+vVKeqrg4JMQqXwvICheoJkUvFJETCTxDGE1N0KxLrClqYRJ7GeASKu6uFOCJUlsRfOX1Qrn1Yr7XExKkAlCwtx/chBB0jroCRmFNbB5R57pYQzDCYHdaHwk0GQMlzZ+00Tda61upE0exmV4CUtztm+xM5HuXJowAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.palace0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAAA2BJREFUOBEFwU1rXVUUgOF3rb3P1725yU3TWJWohEJxUJ1aOlBQiujQiQNnIo6c+gsExwqCv8BB/0HFoQNxoKK2tIJtKNUYaz5u7kfuOWefvZbPw4M7n/rRwY9/zufnbw/u4u5yPjt55+jJL48e3r3tR38/OJ7N5u9fXKzicrHg8PHPzM/Pbx49+f23+z994wd//JDPTo8/12ZjjuV/r1ruvhra7mbq2tdy7r/ou9P9jY0Gd3bykL4U93erKk6fffH6xOz8s747fGU6XrPVLDVo+kQWhx+6FLcg3nDr7VhD9lDqZfessaxxxljGh3Z1lrI+kEJ/jfHoA8nHm1EL8ICWLyEHd95zqZ/HR9dwNmmaRF2tqEYVcWMPimdoVwOr0wUXXcBCJPhDtptjoOFiLkx2XiW2s4RUh3jbos0lRhFUM+Rt3LbAJoRYE8uBsHhEoSvq8pjg0KVMu4QYz4giEBgIPiNKopKGGDYgNECJSCQUI4oyoN0B2ClVdKJMGcTAhdSuiQioOJGBJhplFQgFuGTAgICIEDwj7SmpOyYVNbFsEHrcA9kyigACIGgo0FihwRDJOAEn4gQEJ4ihPmBpwIeMqCFqSFAigAiIAAhgCAkk41IAEQccQzAcMHfAUUkEBRHQdQd5ANxx67HUkrPiFgFFUBRDLGPmZAN3MAfLjpARG4iHJ7CbYVOcInV4rsm2jdAQyIgouIKDO5hBGpzVGlJf0vZCEyGC899caLOjVSZURgiBUAZ8GNAwYK503cC6c1Zr6DGiDEgTaXulrJW4u1Ox7hLuznIlSOWU0qG0xGGFlHOMmvVizcnS6NewWQujQiE4rSgSIlruvMxkc8JkLNS1EgslFIbIgHuHWwIMCU4ZYdzAqFY8G4uTGX2XCGVF1MuvM+gYWd4je09OiZg6irKlKnukMnJOWDCq6LQ9LBaZfrai65Vm+hyxHhF3965/N2/Gb3G+pXn9F4MM5LZFfU4rJdovsWTkQdDRCKxlnXaRsMX0yh7TK/uMp1eQ+XK1N3SLj3SYXfXh4qkW+aZz94bqE0S3Qd4AuwQ+x/P35PyYlG89tbR9Oyj36o2tF8qqOhJ3BxDA2y69ebE8/Xpxdv/aOM4QE8ymuAfAwM/I3tGynyY7+99uTLY+tpz/GY8b/geGd+pmTCUDLQAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}'); if (database.settings.smallFont.value) GM_addStyle('#empireBoard {font-size:11px}'); if (database.settings.hourlyRess.value) GM_addStyle('span.resourceProduction {display: none;} #js_GlobalMenu_wood, #js_GlobalMenu_wine, #js_GlobalMenu_marble, #js_GlobalMenu_crystal, #js_GlobalMenu_sulfur {position:absolute; top:0px; right:0px}'); if (database.settings.wineOut.value) GM_addStyle('#wineOutTable { display: none;}'); if (database.settings.onIkaLogs.value) addScript('https://ikalogs.ru/js/etc/script.js'); if (database.settings.newsTicker.value) GM_addStyle('#GF_toolbar #mmoNewsticker {visibility: hidden !important;}'); if (database.settings.event.value) GM_addStyle('#eventDiv, #genericPopup{display: none;}\n #redVsBlueInfo, #redVsBlueInfo_c {visibility: hidden !important;}'); if (database.settings.birdSwarm.value) GM_addStyle('.bird_swarm {visibility: hidden !important;}'); if (database.settings.walkers.value) GM_addStyle('#walkers {visibility: hidden !important;}'); if (database.settings.controlCenter.value) GM_addStyle('#js_toggleControlsOn, #mapControls, div.footerleft, div.footerright {display: none;}'); if (database.settings.withoutFable.value) GM_addStyle('#buildUnits li.unit > div > p, div.buildingimg > p, div.buildingDescription > p:nth-child(2), #tavernDesc > p:nth-child(1), .content_left > p:nth-child(3), .ad_banner, #premiumOffers p:first-child {display: none;}\n #buildUnits li.unit > div img {transform: scale(0.7);}\n ul#buildings div.buildinginfo img {transform: scale(0.7);}'); if (isChrome && database.settings.withoutFable.value) GM_addStyle('ul#buildings div.buildinginfo img {-webkit-transform: scale(0.7);}\n #buildUnits li.unit > div img {-webkit-transform: scale(0.8);}'); if (database.settings.ambrosiaPay.value) GM_addStyle('#confirmResourcePremiumBuy, #confirmResourcePremiumBuy_c, #premiumResourceShop, #premiumResourceShop_c, #premiumOffers tr.resourceShop, div.resourceShopButton, #individualOfferBuildingSpeedup, #premium_btn, div.premiumOfferBox.highlightbox.twoCols, div.actionButton:nth-child(3) { display: none;} \n li.order {visibility: hidden !important;} \n #js_viewCityMenu ul.menu_slots li[onclick*="view=premiumResourceShop"] { position:absolute; top:-1000px; left:-1000px;}'); if (database.settings.noPiracy.value) GM_addStyle('#position17, #pirateFortressShip {display: none;}'); if (Constant.Buildings.PIRATE_FORTRESS !== 0) GM_addStyle('#pirateFortressBackground{visibility: hidden !important;}');
     //jQuery UI CSS
     GM_addStyle("/*!\n* jQuery UI CSS Framework 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Theming/API\n*/\n\n/* Layout helpers\n----------------------------------*/\n.ui-helper-hidden {\n    display: none;\n}\n\n.ui-helper-hidden-accessible {\n    position: absolute !important;\n    clip: rect(1px, 1px, 1px, 1px);\n    clip: rect(1px, 1px, 1px, 1px);\n}\n\n.ui-helper-reset {\n    margin: 0;\n    padding: 0;\n    border: 0;\n    outline: 0;\n    line-height: 1.3;\n    text-decoration: none;\n    font-size: 100%;\n    list-style: none;\n}\n\n.ui-helper-clearfix:before, .ui-helper-clearfix:after {\n    content: \"\";\n    display: table;\n}\n\n.ui-helper-clearfix:after {\n    clear: both;\n}\n\n.ui-helper-clearfix {\n    zoom: 1;\n}\n\n.ui-helper-zfix {\n    width: 100%;\n    height: 100%;\n    top: 0;\n    left: 0;\n    position: absolute;\n    opacity: 0;\n    filter: Alpha(Opacity = 0);\n}\n\n/* Interaction Cues\n----------------------------------*/\n.ui-state-disabled {\n    cursor: default !important;\n}\n\n/* Icons\n----------------------------------*/\n\n/* states and images */\n.ui-icon {\n    display: block;\n    text-indent: -99999px;\n    overflow: hidden;\n    background-repeat: no-repeat;\n}\n\n/* Misc visuals\n----------------------------------*/\n\n/* Overlays */\n.ui-widget-overlay {\n    position: absolute;\n    top: 0;\n    left: 0;\n    width: 100%;\n    height: 100%;\n}\n\n/*!\n* jQuery UI CSS Framework 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Theming/API\n*\n* To view and modify this theme, visit http://jqueryui.com/themeroller/?ffDefault=Verdana,Arial,sans-serif&fwDefault=bold&fsDefault=1em&cornerRadius=4px&bgColorHeader=F8E7B3&bgTextureHeader=03_highlight_soft.png&bgImgOpacityHeader=75&borderColorHeader=ffffff&fcHeader=542c0f&iconColorHeader=542C0F&bgColorContent=f6ebba&bgTextureContent=01_flat.png&bgImgOpacityContent=75&borderColorContent=eccf8e&fcContent=542c0f&iconColorContent=542c0f&bgColorDefault=eccf8e&bgTextureDefault=02_glass.png&bgImgOpacityDefault=75&borderColorDefault=eccf8e&fcDefault=542c0f&iconColorDefault=542c0f&bgColorHover=f6ebba&bgTextureHover=02_glass.png&bgImgOpacityHover=75&borderColorHover=eccf8e&fcHover=542c0f&iconColorHover=542c0f&bgColorActive=f6ebba&bgTextureActive=02_glass.png&bgImgOpacityActive=65&borderColorActive=eccf8e&fcActive=542c0f&iconColorActive=542c0f&bgColorHighlight=f6ebba&bgTextureHighlight=07_diagonals_medium.png&bgImgOpacityHighlight=100&borderColorHighlight=eccf8e&fcHighlight=542c0f&iconColorHighlight=542c0f&bgColorError=f6ebba&bgTextureError=05_inset_soft.png&bgImgOpacityError=95&borderColorError=cd0a0a&fcError=cd0a0a&iconColorError=cd0a0a&bgColorOverlay=aaaaaa&bgTextureOverlay=07_diagonals_medium.png&bgImgOpacityOverlay=75&opacityOverlay=30&bgColorShadow=aaaaaa&bgTextureShadow=01_flat.png&bgImgOpacityShadow=0&opacityShadow=30&thicknessShadow=8px&offsetTopShadow=-8px&offsetLeftShadow=-8px&cornerRadiusShadow=8px\n*/\n\n/* Component containers\n----------------------------------*/\n.ui-widget {\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 1em;\n}\n\n.ui-widget .ui-widget {\n    font-size: 1em;\n}\n\n.ui-widget input, .ui-widget select, .ui-widget textarea, .ui-widget button {\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 1em;\n}\n\n.ui-widget-content {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAABkCAYAAAD0ZHJ6AAAAfUlEQVRoge3OMQGAIAAAQaR/Iiq5u0oEhht0+Etw13Ovd/zY/DpwUlAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVBtVtsEYluRKCAAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    color: #542c0f;\n}\n\n.ui-widget-content a {\n    color: #542c0f;\n}\n\n.ui-widget-header {\n    border: 1px solid #ffffff;\n    background: #f8e7b3 url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAAEwK2r2AAAAY0lEQVQYlaWPMQ6DQAwER/v/7+UhQTRH7N00QEESiUAzki17vOb1fEQAR8QDpSaUmhHkYwSAb4LEKD2vAryc3/2JpFC8IDzWfHgg0qcEd47/haT3VEZxbWUKQW89GhFffeEi3kGvSQXcQU8oAAAAAElFTkSuQmCC\") 50% 50% repeat-x;\n    color: #542c0f;\n    font-weight: bold;\n}\n\n.ui-widget-header a {\n    color: #542c0f;\n}\n\n/* Interaction states\n----------------------------------*/\n.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default {\n    border: 1px solid #eccf8e;\n    background: #eccf8e url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAASklEQVQ4je3Puw2EABAD0fGw9F8KFSFqgJTgCPhEFHBCmzxN4sCs8/QToGmaz7JvC5JgMiAnhbEwjoiFPpXUXda1SPyHM03TvHEAd0QJtjgD5PAAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-default a, .ui-state-default a:link, .ui-state-default a:visited {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-state-hover, .ui-widget-content .ui-state-hover, .ui-widget-header .ui-state-hover, .ui-state-focus, .ui-widget-content .ui-state-focus, .ui-widget-header .ui-state-focus {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAAR0lEQVQ4je3PMQrAIABD0Z/o/Y/Wk3RwLBSqg0KXHkBKlkeGv4SrHd0AIYTf8twnBmEkDF5IBTMxlupaM1HB0ht7hzMhhC8GEiwJ5YKag9EAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-hover a, .ui-state-hover a:hover {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-state-active, .ui-widget-content .ui-state-active, .ui-widget-header .ui-state-active {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAARklEQVQ4je3PsQnAMBBD0S9l/8kyTFIaDDkXBkMgA5ig5iEdXCHafZYBQgi/5ekXrlmFpQNLxmDMTOv2rrU+kHYYE0L4YgB9ewvfYTVHjwAAAABJRU5ErkJggg==\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-active a, .ui-state-active a:link, .ui-state-active a:visited {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-widget :active {\n    outline: none;\n}\n\n/* Interaction Cues\n----------------------------------*/\n.ui-state-highlight, .ui-widget-content .ui-state-highlight, .ui-widget-header .ui-state-highlight {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAjElEQVRYhe2UOwqAMBAFx2DlMbz/kSS3MIUIWij4aZ/gK952YZohu0y3zNPGOWur3Kcfxsf7D16c5YBD0FUOoDjLAdeKHeXWVi9BRzk4f9BVDqA4y8HrBt3k0sEveDqo8nRQ5emgytNBlaeDKk8HVZ4OqjwdVHk6qPJ0UOXpoMrTQZWngypPB1Vu38EdG7NcOPXFHAMAAAAASUVORK5CYII=\") 50% 50% repeat;\n    color: #542c0f;\n}\n\n.ui-state-highlight a, .ui-widget-content .ui-state-highlight a, .ui-widget-header .ui-state-highlight a {\n    color: #542c0f;\n}\n\n.ui-state-error, .ui-widget-content .ui-state-error, .ui-widget-header .ui-state-error {\n    border: 1px solid #cd0a0a;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAASElEQVQYld2PMQ6DUBTDbP/7X4grde/6GACpjN0QS+QkyhC+n20CeI3MQChJJ4GEka7LEtkiRsJF2llw0G02SP5k0oxPOP2P7E3MCpW4kdm7AAAAAElFTkSuQmCC\") 50% bottom repeat-x;\n    color: #cd0a0a;\n}\n\n.ui-state-error a, .ui-widget-content .ui-state-error a, .ui-widget-header .ui-state-error a {\n    color: #cd0a0a;\n}\n\n.ui-state-error-text, .ui-widget-content .ui-state-error-text, .ui-widget-header .ui-state-error-text {\n    color: #cd0a0a;\n}\n\n.ui-priority-primary, .ui-widget-content .ui-priority-primary, .ui-widget-header .ui-priority-primary {\n    font-weight: bold;\n}\n\n.ui-priority-secondary, .ui-widget-content .ui-priority-secondary, .ui-widget-header .ui-priority-secondary {\n    opacity: .7;\n    filter: Alpha(Opacity = 70);\n    font-weight: normal;\n}\n\n.ui-state-disabled, .ui-widget-content .ui-state-disabled, .ui-widget-header .ui-state-disabled {\n    opacity: .35;\n    filter: Alpha(Opacity = 35);\n    background-image: none;\n}\n\n/* Icons\n----------------------------------*/\n\n/* states and images */\n.ui-icon {\n    width: 16px;\n    height: 16px;\n}\n\n.ui-state-error .ui-icon, .ui-state-error-text .ui-icon {\n    background-image: url(\"data:image/png;base64,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\");\n}\n\n.ui-icon, .ui-widget-content .ui-icon, .ui-widget-header .ui-icon, .ui-state-default .ui-icon, .ui-state-hover .ui-icon, .ui-state-focus .ui-icon, .ui-state-active .ui-icon, .ui-state-highlight .ui-icon {\n    background-image: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAADwCAMAAAGvTnpvAAAA7VBMVEVULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxwjo40AAAATnRSTlMAGBAyBAhQv4OZLiJUcEBmYBoSzQwgPBZCSEoeWiYwUiyFNIeBw2rJz8c4RBy9uXyrtaWNqa2zKP2fJO8KBgKPo2KVoa9s351GPm5+kWho0kj9AAATX0lEQVR4nO1dC2PbthEGyUpaqJii/JgbZ3bTLNmyJns/Oi1bM7vp0q7r/f+fM+JxwOEAkNTTSoxPlqHD83AE7gAQBIUYBHSfQv0XnbsJgH02A3g5ibVzDFNtlkPI1VjIuOUa8eMclOLS1uRSPBETURnOrkbmID9T9fuPyu+cSGYYKya5efeddN9TRS1H8eD4kDjrPutBpptt2apkiqX57A4gfloj7ua9AXMQ3dWvNs8n7NCwZk6bqYSg1CgNsaCBHDAluMQjcihEWBNYSxamUYNMs15KmwMUKhm0S5UBwMQFjcqxelSYskHBtLC26X7/eWQtVB1MaWXzF1OrUyhLgOrFiBwalDwg6+tigfzbnNbM40UlTrrO3clTftcuX7jyY9gkv81RVWI9K0OxNa8Hruw+EFctu6xaqDhCGkjQ2hyMitiXKyR+7xSqx6u6AitlpI3wrBj5OSo5xv8ZShoq5VZE+p/hb/OVzuPHyHGXQLoug9b4af/OzArAqtlvq8PidqZSflOYigVIpTZ33192wQ1jHVXLgjWWeZdAfhn3UteqH43NI9EGSjns7CJ//g8h6o6++UrLBTrOZJUkhy4NxDNAblZld53kJZl34z4jE5cB0HbA5RHnzg9Txud28wwG4aS1pwzKH7t/IyxlEvW2XVQLcf0vyeCWfL9j39vk95iA1alinhtmcHDr34ti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\");\n}\n\n/* positioning */\n.ui-icon-carat-1-n {\n    background-position: 0 0;\n}\n\n.ui-icon-carat-1-ne {\n    background-position: -16px 0;\n}\n\n.ui-icon-carat-1-e {\n    background-position: -32px 0;\n}\n\n.ui-icon-carat-1-se {\n    background-position: -48px 0;\n}\n\n.ui-icon-carat-1-s {\n    background-position: -64px 0;\n}\n\n.ui-icon-carat-1-sw {\n    background-position: -80px 0;\n}\n\n.ui-icon-carat-1-w {\n    background-position: -96px 0;\n}\n\n.ui-icon-carat-1-nw {\n    background-position: -112px 0;\n}\n\n.ui-icon-carat-2-n-s {\n    background-position: -128px 0;\n}\n\n.ui-icon-carat-2-e-w {\n    background-position: -144px 0;\n}\n\n.ui-icon-triangle-1-n {\n    background-position: 0 -16px;\n}\n\n.ui-icon-triangle-1-ne {\n    background-position: -16px -16px;\n}\n\n.ui-icon-triangle-1-e {\n    background-position: -32px -16px;\n}\n\n.ui-icon-triangle-1-se {\n    background-position: -48px -16px;\n}\n\n.ui-icon-triangle-1-s {\n    background-position: -64px -16px;\n}\n\n.ui-icon-triangle-1-sw {\n    background-position: -80px -16px;\n}\n\n.ui-icon-triangle-1-w {\n    background-position: -96px -16px;\n}\n\n.ui-icon-triangle-1-nw {\n    background-position: -112px -16px;\n}\n\n.ui-icon-triangle-2-n-s {\n    background-position: -128px -16px;\n}\n\n.ui-icon-triangle-2-e-w {\n    background-position: -144px -16px;\n}\n\n.ui-icon-arrow-1-n {\n    background-position: 0 -32px;\n}\n\n.ui-icon-arrow-1-ne {\n    background-position: -16px -32px;\n}\n\n.ui-icon-arrow-1-e {\n    background-position: -32px -32px;\n}\n\n.ui-icon-arrow-1-se {\n    background-position: -48px -32px;\n}\n\n.ui-icon-arrow-1-s {\n    background-position: -64px -32px;\n}\n\n.ui-icon-arrow-1-sw {\n    background-position: -80px -32px;\n}\n\n.ui-icon-arrow-1-w {\n    background-position: -96px -32px;\n}\n\n.ui-icon-arrow-1-nw {\n    background-position: -112px -32px;\n}\n\n.ui-icon-arrow-2-n-s {\n    background-position: -128px -32px;\n}\n\n.ui-icon-arrow-2-ne-sw {\n    background-position: -144px -32px;\n}\n\n.ui-icon-arrow-2-e-w {\n    background-position: -160px -32px;\n}\n\n.ui-icon-arrow-2-se-nw {\n    background-position: -176px -32px;\n}\n\n.ui-icon-arrowstop-1-n {\n    background-position: -192px -32px;\n}\n\n.ui-icon-arrowstop-1-e {\n    background-position: -208px -32px;\n}\n\n.ui-icon-arrowstop-1-s {\n    background-position: -224px -32px;\n}\n\n.ui-icon-arrowstop-1-w {\n    background-position: -240px -32px;\n}\n\n.ui-icon-arrowthick-1-n {\n    background-position: 0 -48px;\n}\n\n.ui-icon-arrowthick-1-ne {\n    background-position: -16px -48px;\n}\n\n.ui-icon-arrowthick-1-e {\n    background-position: -32px -48px;\n}\n\n.ui-icon-arrowthick-1-se {\n    background-position: -48px -48px;\n}\n\n.ui-icon-arrowthick-1-s {\n    background-position: -64px -48px;\n}\n\n.ui-icon-arrowthick-1-sw {\n    background-position: -80px -48px;\n}\n\n.ui-icon-arrowthick-1-w {\n    background-position: -96px -48px;\n}\n\n.ui-icon-arrowthick-1-nw {\n    background-position: -112px -48px;\n}\n\n.ui-icon-arrowthick-2-n-s {\n    background-position: -128px -48px;\n}\n\n.ui-icon-arrowthick-2-ne-sw {\n    background-position: -144px -48px;\n}\n\n.ui-icon-arrowthick-2-e-w {\n    background-position: -160px -48px;\n}\n\n.ui-icon-arrowthick-2-se-nw {\n    background-position: -176px -48px;\n}\n\n.ui-icon-arrowthickstop-1-n {\n    background-position: -192px -48px;\n}\n\n.ui-icon-arrowthickstop-1-e {\n    background-position: -208px -48px;\n}\n\n.ui-icon-arrowthickstop-1-s {\n    background-position: -224px -48px;\n}\n\n.ui-icon-arrowthickstop-1-w {\n    background-position: -240px -48px;\n}\n\n.ui-icon-arrowreturnthick-1-w {\n    background-position: 0 -64px;\n}\n\n.ui-icon-arrowreturnthick-1-n {\n    background-position: -16px -64px;\n}\n\n.ui-icon-arrowreturnthick-1-e {\n    background-position: -32px -64px;\n}\n\n.ui-icon-arrowreturnthick-1-s {\n    background-position: -48px -64px;\n}\n\n.ui-icon-arrowreturn-1-w {\n    background-position: -64px -64px;\n}\n\n.ui-icon-arrowreturn-1-n {\n    background-position: -80px -64px;\n}\n\n.ui-icon-arrowreturn-1-e {\n    background-position: -96px -64px;\n}\n\n.ui-icon-arrowreturn-1-s {\n    background-position: -112px -64px;\n}\n\n.ui-icon-arrowrefresh-1-w {\n    background-position: -128px -64px;\n}\n\n.ui-icon-arrowrefresh-1-n {\n    background-position: -144px -64px;\n}\n\n.ui-icon-arrowrefresh-1-e {\n    background-position: -160px -64px;\n}\n\n.ui-icon-arrowrefresh-1-s {\n    background-position: -176px -64px;\n}\n\n.ui-icon-arrow-4 {\n    background-position: 0 -80px;\n}\n\n.ui-icon-arrow-4-diag {\n    background-position: -16px -80px;\n}\n\n.ui-icon-extlink {\n    background-position: -32px -80px;\n}\n\n.ui-icon-newwin {\n    background-position: -48px -80px;\n}\n\n.ui-icon-refresh {\n    background-position: -64px -80px;\n}\n\n.ui-icon-shuffle {\n    background-position: -80px -80px;\n}\n\n.ui-icon-transfer-e-w {\n    background-position: -96px -80px;\n}\n\n.ui-icon-transferthick-e-w {\n    background-position: -112px -80px;\n}\n\n.ui-icon-folder-collapsed {\n    background-position: 0 -96px;\n}\n\n.ui-icon-folder-open {\n    background-position: -16px -96px;\n}\n\n.ui-icon-document {\n    background-position: -32px -96px;\n}\n\n.ui-icon-document-b {\n    background-position: -48px -96px;\n}\n\n.ui-icon-note {\n    background-position: -64px -96px;\n}\n\n.ui-icon-mail-closed {\n    background-position: -80px -96px;\n}\n\n.ui-icon-mail-open {\n    background-position: -96px -96px;\n}\n\n.ui-icon-suitcase {\n    background-position: -112px -96px;\n}\n\n.ui-icon-comment {\n    background-position: -128px -96px;\n}\n\n.ui-icon-person {\n    background-position: -144px -96px;\n}\n\n.ui-icon-print {\n    background-position: -160px -96px;\n}\n\n.ui-icon-trash {\n    background-position: -176px -96px;\n}\n\n.ui-icon-locked {\n    background-position: -192px -96px;\n}\n\n.ui-icon-unlocked {\n    background-position: -208px -96px;\n}\n\n.ui-icon-bookmark {\n    background-position: -224px -96px;\n}\n\n.ui-icon-tag {\n    background-position: -240px -96px;\n}\n\n.ui-icon-home {\n    background-position: 0 -112px;\n}\n\n.ui-icon-flag {\n    background-position: -16px -112px;\n}\n\n.ui-icon-calendar {\n    background-position: -32px -112px;\n}\n\n.ui-icon-cart {\n    background-position: -48px -112px;\n}\n\n.ui-icon-pencil {\n    background-position: -64px -112px;\n}\n\n.ui-icon-clock {\n    background-position: -80px -112px;\n}\n\n.ui-icon-disk {\n    background-position: -96px -112px;\n}\n\n.ui-icon-calculator {\n    background-position: -112px -112px;\n}\n\n.ui-icon-zoomin {\n    background-position: -128px -112px;\n}\n\n.ui-icon-zoomout {\n    background-position: -144px -112px;\n}\n\n.ui-icon-search {\n    background-position: -160px -112px;\n}\n\n.ui-icon-wrench {\n    background-position: -176px -112px;\n}\n\n.ui-icon-gear {\n    background-position: -192px -112px;\n}\n\n.ui-icon-heart {\n    background-position: -208px -112px;\n}\n\n.ui-icon-star {\n    background-position: -224px -112px;\n}\n\n.ui-icon-link {\n    background-position: -240px -112px;\n}\n\n.ui-icon-cancel {\n    background-position: 0 -128px;\n}\n\n.ui-icon-plus {\n    background-position: -16px -128px;\n}\n\n.ui-icon-plusthick {\n    background-position: -32px -128px;\n}\n\n.ui-icon-minus {\n    background-position: -48px -128px;\n}\n\n.ui-icon-minusthick {\n    background-position: -64px -128px;\n}\n\n.ui-icon-close {\n    background-position: -80px -128px;\n}\n\n.ui-icon-closethick {\n    background-position: -96px -128px;\n}\n\n.ui-icon-key {\n    background-position: -112px -128px;\n}\n\n.ui-icon-lightbulb {\n    background-position: -128px -128px;\n}\n\n.ui-icon-scissors {\n    background-position: -144px -128px;\n}\n\n.ui-icon-clipboard {\n    background-position: -160px -128px;\n}\n\n.ui-icon-copy {\n    background-position: -176px -128px;\n}\n\n.ui-icon-contact {\n    background-position: -192px -128px;\n}\n\n.ui-icon-image {\n    background-position: -208px -128px;\n}\n\n.ui-icon-video {\n    background-position: -224px -128px;\n}\n\n.ui-icon-script {\n    background-position: -240px -128px;\n}\n\n.ui-icon-alert {\n    background-position: 0 -144px;\n}\n\n.ui-icon-info {\n    background-position: -16px -144px;\n}\n\n.ui-icon-notice {\n    background-position: -32px -144px;\n}\n\n.ui-icon-help {\n    background-position: -48px -144px;\n}\n\n.ui-icon-check {\n    background-position: -64px -144px;\n}\n\n.ui-icon-bullet {\n    background-position: -80px -144px;\n}\n\n.ui-icon-radio-off {\n    background-position: -96px -144px;\n}\n\n.ui-icon-radio-on {\n    background-position: -112px -144px;\n}\n\n.ui-icon-pin-w {\n    background-position: -128px -144px;\n}\n\n.ui-icon-pin-s {\n    background-position: -144px -144px;\n}\n\n.ui-icon-play {\n    background-position: 0 -160px;\n}\n\n.ui-icon-pause {\n    background-position: -16px -160px;\n}\n\n.ui-icon-seek-next {\n    background-position: -32px -160px;\n}\n\n.ui-icon-seek-prev {\n    background-position: -48px -160px;\n}\n\n.ui-icon-seek-end {\n    background-position: -64px -160px;\n}\n\n.ui-icon-seek-start {\n    background-position: -80px -160px;\n}\n\n/* ui-icon-seek-first is deprecated, use ui-icon-seek-start instead */\n.ui-icon-seek-first {\n    background-position: -80px -160px;\n}\n\n.ui-icon-stop {\n    background-position: -96px -160px;\n}\n\n.ui-icon-eject {\n    background-position: -112px -160px;\n}\n\n.ui-icon-volume-off {\n    background-position: -128px -160px;\n}\n\n.ui-icon-volume-on {\n    background-position: -144px -160px;\n}\n\n.ui-icon-power {\n    background-position: 0 -176px;\n}\n\n.ui-icon-signal-diag {\n    background-position: -16px -176px;\n}\n\n.ui-icon-signal {\n    background-position: -32px -176px;\n}\n\n.ui-icon-battery-0 {\n    background-position: -48px -176px;\n}\n\n.ui-icon-battery-1 {\n    background-position: -64px -176px;\n}\n\n.ui-icon-battery-2 {\n    background-position: -80px -176px;\n}\n\n.ui-icon-battery-3 {\n    background-position: -96px -176px;\n}\n\n.ui-icon-circle-plus {\n    background-position: 0 -192px;\n}\n\n.ui-icon-circle-minus {\n    background-position: -16px -192px;\n}\n\n.ui-icon-circle-close {\n    background-position: -32px -192px;\n}\n\n.ui-icon-circle-triangle-e {\n    background-position: -48px -192px;\n}\n\n.ui-icon-circle-triangle-s {\n    background-position: -64px -192px;\n}\n\n.ui-icon-circle-triangle-w {\n    background-position: -80px -192px;\n}\n\n.ui-icon-circle-triangle-n {\n    background-position: -96px -192px;\n}\n\n.ui-icon-circle-arrow-e {\n    background-position: -112px -192px;\n}\n\n.ui-icon-circle-arrow-s {\n    background-position: -128px -192px;\n}\n\n.ui-icon-circle-arrow-w {\n    background-position: -144px -192px;\n}\n\n.ui-icon-circle-arrow-n {\n    background-position: -160px -192px;\n}\n\n.ui-icon-circle-zoomin {\n    background-position: -176px -192px;\n}\n\n.ui-icon-circle-zoomout {\n    background-position: -192px -192px;\n}\n\n.ui-icon-circle-check {\n    background-position: -208px -192px;\n}\n\n.ui-icon-circlesmall-plus {\n    background-position: 0 -208px;\n}\n\n.ui-icon-circlesmall-minus {\n    background-position: -16px -208px;\n}\n\n.ui-icon-circlesmall-close {\n    background-position: -32px -208px;\n}\n\n.ui-icon-squaresmall-plus {\n    background-position: -48px -208px;\n}\n\n.ui-icon-squaresmall-minus {\n    background-position: -64px -208px;\n}\n\n.ui-icon-squaresmall-close {\n    background-position: -80px -208px;\n}\n\n.ui-icon-grip-dotted-vertical {\n    background-position: 0 -224px;\n}\n\n.ui-icon-grip-dotted-horizontal {\n    background-position: -16px -224px;\n}\n\n.ui-icon-grip-solid-vertical {\n    background-position: -32px -224px;\n}\n\n.ui-icon-grip-solid-horizontal {\n    background-position: -48px -224px;\n}\n\n.ui-icon-gripsmall-diagonal-se {\n    background-position: -64px -224px;\n}\n\n.ui-icon-grip-diagonal-se {\n    background-position: -80px -224px;\n}\n\n/* Misc visuals\n----------------------------------*/\n\n/* Corner radius */\n.ui-corner-all, .ui-corner-top, .ui-corner-left, .ui-corner-tl {\n    -moz-border-radius-topleft: 0px;\n    -webkit-border-top-left-radius: 0px;\n    -khtml-border-top-left-radius: 0px;\n    border-top-left-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-top, .ui-corner-right, .ui-corner-tr {\n    -moz-border-radius-topright: 0px;\n    -webkit-border-top-right-radius: 0px;\n    -khtml-border-top-right-radius: 0px;\n    border-top-right-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-bottom, .ui-corner-left, .ui-corner-bl {\n    -moz-border-radius-bottomleft: 0px;\n    -webkit-border-bottom-left-radius: 0px;\n    -khtml-border-bottom-left-radius: 0px;\n    border-bottom-left-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-bottom, .ui-corner-right, .ui-corner-br {\n    -moz-border-radius-bottomright: 0px;\n    -webkit-border-bottom-right-radius: 0px;\n    -khtml-border-bottom-right-radius: 0px;\n    border-bottom-right-radius: 0px;\n}\n\n/* Overlays */\n.ui-widget-overlay {\n    background: #aaaaaa url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAh0lEQVRYhe2UsQ3AIAwEL0zC/qMwhTdJiiCRpH2kfPHu0DUnbN0xxjiZU1U8p/f+ev/Bm7MccAu6ygE0ZzlgrdhRrqqWoKMczB90lQNoznLwuUE3uXRwB08HVZ4OqjwdVHk6qPJ0UOXpoMrTQZWngypPB1WeDqo8HVR5OqjydFDl6aDK7Tt4AWXCW8vnTP6PAAAAAElFTkSuQmCC\") 50% 50% repeat;\n    opacity: .30;\n    filter: Alpha(Opacity = 30);\n}\n\n.ui-widget-shadow {\n    margin: -8px 0 0 -8px;\n    padding: 8px;\n    background: #aaaaaa url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAABkCAYAAAD0ZHJ6AAAAe0lEQVRoge3OMQHAIBAAMcC/kjdZJHTI0A4XBdkz86wfO18H3hRUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUF8O8A8WdY6opAAAAAElFTkSuQmCC\") 50% 50% repeat-x;\n    opacity: .30;\n    filter: Alpha(Opacity = 30);\n    -moz-border-radius: 8px;\n    -khtml-border-radius: 8px;\n    -webkit-border-radius: 8px;\n    border-radius: 8px;\n}\n\n/*!\n* jQuery UI Resizable 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Resizable#theming\n*/\n.ui-resizable {\n    position: relative;\n}\n\n.ui-resizable-handle {\n    position: absolute;\n    font-size: 0.1px;\n    display: block;\n}\n\n.ui-resizable-disabled .ui-resizable-handle, .ui-resizable-autohide .ui-resizable-handle {\n    display: none;\n}\n\n.ui-resizable-n {\n    cursor: n-resize;\n    height: 7px;\n    width: 100%;\n    top: -5px;\n    left: 0;\n}\n\n.ui-resizable-s {\n    cursor: s-resize;\n    height: 7px;\n    width: 100%;\n    bottom: -5px;\n    left: 0;\n}\n\n.ui-resizable-e {\n    cursor: e-resize;\n    width: 7px;\n    right: -5px;\n    top: 0;\n    height: 100%;\n}\n\n.ui-resizable-w {\n    cursor: w-resize;\n    width: 7px;\n    left: -5px;\n    top: 0;\n    height: 100%;\n}\n\n.ui-resizable-se {\n    cursor: se-resize;\n    width: 12px;\n    height: 12px;\n    right: 1px;\n    bottom: 1px;\n}\n\n.ui-resizable-sw {\n    cursor: sw-resize;\n    width: 9px;\n    height: 9px;\n    left: -5px;\n    bottom: -5px;\n}\n\n.ui-resizable-nw {\n    cursor: nw-resize;\n    width: 9px;\n    height: 9px;\n    left: -5px;\n    top: -5px;\n}\n\n.ui-resizable-ne {\n    cursor: ne-resize;\n    width: 9px;\n    height: 9px;\n    right: -5px;\n    top: -5px;\n}\n\n/*!\n* jQuery UI Button 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Button#theming\n*/\n.ui-button {\n    display: inline-block;\n    position: relative;\n    padding: 0;\n    margin-right: .1em;\n    text-decoration: none !important;\n    cursor: pointer;\n    text-align: center;\n    zoom: 1;\n    overflow: visible;\n}\n\n/* the overflow property removes extra width in IE */\n.ui-button-icon-only {\n    width: 2.2em;\n}\n\n/* to make room for the icon, a width needs to be set here */\nbutton.ui-button-icon-only {\n    width: 2.4em;\n}\n\n/* button elements seem to need a little more width */\n.ui-button-icons-only {\n    width: 3.4em;\n}\n\nbutton.ui-button-icons-only {\n    width: 3.7em;\n}\n\n/*button text element */\n.ui-button .ui-button-text {\n    display: block;\n    line-height: 1.4;\n}\n\n.ui-button-text-only .ui-button-text {\n    padding: .4em 1em;\n}\n\n.ui-button-icon-only .ui-button-text, .ui-button-icons-only .ui-button-text {\n    padding: .4em;\n    text-indent: -9999999px;\n}\n\n.ui-button-text-icon-primary .ui-button-text, .ui-button-text-icons .ui-button-text {\n    padding: .4em 1em .4em 2.1em;\n}\n\n.ui-button-text-icon-secondary .ui-button-text, .ui-button-text-icons .ui-button-text {\n    padding: .4em 2.1em .4em 1em;\n}\n\n.ui-button-text-icons .ui-button-text {\n    padding-left: 2.1em;\n    padding-right: 2.1em;\n}\n\n/* no icon support for input elements, provide padding by default */\ninput.ui-button {\n    padding: .4em 1em;\n}\n\n/*button icon element(s) */\n.ui-button-icon-only .ui-icon, .ui-button-text-icon-primary .ui-icon, .ui-button-text-icon-secondary .ui-icon, .ui-button-text-icons .ui-icon, .ui-button-icons-only .ui-icon {\n    position: absolute;\n    top: 50%;\n    margin-top: -8px;\n}\n\n.ui-button-icon-only .ui-icon {\n    left: 50%;\n    margin-left: -8px;\n}\n\n.ui-button-text-icon-primary .ui-button-icon-primary, .ui-button-text-icons .ui-button-icon-primary, .ui-button-icons-only .ui-button-icon-primary {\n    left: .5em;\n}\n\n.ui-button-text-icon-secondary .ui-button-icon-secondary, .ui-button-text-icons .ui-button-icon-secondary, .ui-button-icons-only .ui-button-icon-secondary {\n    right: .5em;\n}\n\n.ui-button-text-icons .ui-button-icon-secondary, .ui-button-icons-only .ui-button-icon-secondary {\n    right: .5em;\n}\n\n/*button sets*/\n.ui-buttonset {\n    margin-right: 7px;\n}\n\n.ui-buttonset .ui-button {\n    margin-left: 0;\n    margin-right: -.3em;\n}\n\n/* workarounds */\nbutton.ui-button::-moz-focus-inner {\n    border: 0;\n    padding: 0;\n}\n\n/* reset extra padding in Firefox */\n/*!\n * jQuery UI Dialog 1.8.21\n *\n * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n * Dual licensed under the MIT or GPL Version 2 licenses.\n * http://jquery.org/license\n *\n * http://docs.jquery.com/UI/Dialog#theming\n */\n.ui-dialog {\n    position: absolute;\n    padding: .2em;\n    width: 300px;\n    overflow: hidden;\n}\n\n.ui-dialog .ui-dialog-titlebar {\n    padding: .4em 1em;\n    position: relative;\n}\n\n.ui-dialog .ui-dialog-title {\n    float: left;\n    margin: .1em 16px .1em 0;\n}\n\n.ui-dialog .ui-dialog-titlebar-close {\n    position: absolute;\n    right: .3em;\n    top: 50%;\n    width: 19px;\n    margin: -10px 0 0 0;\n    padding: 1px;\n    height: 18px;\n}\n\n.ui-dialog .ui-dialog-titlebar-close span {\n    display: block;\n    margin: 1px;\n}\n\n.ui-dialog .ui-dialog-titlebar-close:hover, .ui-dialog .ui-dialog-titlebar-close:focus {\n    padding: 0;\n}\n\n.ui-dialog .ui-dialog-content {\n    position: relative;\n    border: 0;\n    padding: .5em;\n    background: none;\n    overflow: auto;\n    zoom: 1;\n}\n\n.ui-dialog .ui-dialog-buttonpane {\n    text-align: left;\n    border-width: 1px 0 0 0;\n    background-image: none;\n    margin: .5em 0 0 0;\n    padding: .3em 1em .5em .4em;\n}\n\n.ui-dialog .ui-dialog-buttonpane .ui-dialog-buttonset {\n    float: right;\n}\n\n.ui-dialog .ui-dialog-buttonpane button {\n    margin: .5em .4em .5em 0;\n    cursor: pointer;\n}\n\n.ui-dialog .ui-resizable-se {\n    width: 14px;\n    height: 14px;\n    right: 3px;\n    bottom: 3px;\n}\n\n.ui-draggable .ui-dialog-titlebar {\n    cursor: move;\n}\n\n/*!\n* jQuery UI Tabs 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Tabs#theming\n*/\n.ui-tabs {\n    position: relative;\n    padding: 0em;\n    zoom: 1;\n}\n\n/* position: relative prevents IE scroll bug (element with position: relative inside container with overflow: auto appear as \"fixed\") */\n.ui-tabs .ui-tabs-nav {\n    margin: 0;\n    padding: .2em .2em 0;\n}\n\n.ui-tabs .ui-tabs-nav li {\n    list-style: none;\n    float: left;\n    position: relative;\n    top: 1px;\n    margin: 0 .2em 1px 0;\n    border-bottom: 0 !important;\n    padding: 0;\n    white-space: nowrap;\n}\n\n.ui-tabs .ui-tabs-nav li a {\n    float: left;\n    padding: .2em 1em;\n    text-decoration: none;\n}\n\n.ui-tabs .ui-tabs-nav li.ui-tabs-active {\n    margin-bottom: 0;\n    padding-bottom: 1px;\n}\n\n.ui-tabs .ui-tabs-nav li.ui-tabs-active a, .ui-tabs .ui-tabs-nav li.ui-state-disabled a, .ui-tabs .ui-tabs-nav li.ui-tabs-loading a {\n    cursor: text;\n}\n\n.ui-tabs .ui-tabs-nav li a, .ui-tabs.ui-tabs-collapsible .ui-tabs-nav li.ui-tabs-active a {\n    cursor: pointer;\n}\n\n/* first selector in group seems obsolete, but required to overcome bug in Opera applying cursor: text overall if defined elsewhere... */\n.ui-tabs .ui-tabs-panel {\n    display: block;\n    border-width: 0;\n    padding: 0em 0.1em;\n    background: none;\n}\n\n/*!\n* jQuery UI Progressbar 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Progressbar#theming\n*/\n.ui-progressbar {\n    height: 4px;\n    text-align: left;\n    overflow: hidden;\n}\n\n.ui-progressbar .ui-progressbar-value {\n    margin: -1px;\n    height: 100%;\n}");
   };
   /**************************************************************************
-   * hourly Resources
-   ***************************************************************************/
+  *  hourly Resources
+  ***************************************************************************/
 
   var ResourceProduction = new function () {
     function addProd(position, value) {
@@ -4358,7 +4369,21 @@
       }
     },
     parsePalace: function () {
-      var governmentType = $('#formOfRuleContent').find('td.government_pic img').attr('src').slice(16, -8);
+      //var governmentType = $('#formOfRuleContent').find('td.government_pic img').attr('src').slice(16, -8);
+      //---mrfix---
+      var cases = {
+        '8eb243d68d7e1e7d57c4fbf4416663': 'demokratie',
+        'a403727326be282fa7eb729718e05a': 'ikakratie',
+        '1d4933352dedf6e0269ef0717ceaeb': 'aristokratie',
+        'd23aed943dedf6449c9cff81b6a036': 'diktatur',
+        'e7f322861f76c39e7e86bcfac97f71': 'nomokratie',
+        'c07616e9e2b93844dddba80e389cc4': 'oligarchie',
+        '8b39242f51982b91c8933bdbc6267e': 'technokratie',
+        '4eede67db23c07f47e73c483a5f32c': 'theokratie'
+      };
+      var ttype = $('#formOfRuleContent').find('td.government_pic img').attr('src').slice(26, -4);
+      var governmentType = cases[ttype] || 'ikakratie';
+      //---mrfix---
       var changed = (database.getGlobalData.getGovernmentType != governmentType);
       database.getGlobalData.governmentType = governmentType;
       if (changed) events(Constant.Events.GLOBAL_UPDATED).pub({ type: 'government' });
@@ -4871,70 +4896,70 @@
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0,
-        icon: 'skin/premium/premium_account.png'
+        icon: '/cdn/all/both/premium/premium_account.png'
       },
       ResourceBonus: {
         type: 16,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_wood.jpg'
+        icon: '/cdn/all/both/premium/b_premium_wood.jpg'
       },
       WineBonus: {
         type: 14,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_wine.jpg'
+        icon: '/cdn/all/both/premium/b_premium_wine.jpg'
       },
       MarbleBonus: {
         type: 11,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_marble.jpg'
+        icon: '/cdn/all/both/premium/b_premium_marble.jpg'
       },
       SulfurBonus: {
         type: 12,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_sulfur.jpg'
+        icon: '/cdn/all/both/premium/b_premium_sulfur.jpg'
       },
       CrystalBonus: {
         type: 13,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_crystal.jpg'
+        icon: '/cdn/all/both/premium/b_premium_crystal.jpg'
       },
       ResearchPointsBonus: {
         type: 18,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_research.jpg'
+        icon: '/cdn/all/both/premium/b_premium_research.jpg'
       },
       ResearchPointsBonusExtremeLength: {
         type: 0,
         duration: 70 * 24 * 60,
         cost: 0,
         bonus: 0.2,
-        icon: 'skin/premium/b_premium_research_big.jpg'
+        icon: '/cdn/all/both/premium/b_premium_research_big.jpg'
       },
       SafecapacityBonus: {
         type: 17,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 1,
-        icon: 'skin/premium/b_premium_safecapacity.jpg'
+        icon: '/cdn/all/both/premium/b_premium_safecapacity.jpg'
       },
       StoragecapacityBonus: {
         type: 33,
         duration: 7 * 24 * 60,
         cost: 0,
         bonus: 1,
-        icon: 'skin/premium/b_premium_storagecapacity.jpg'
+        icon: '/cdn/all/both/premium/b_premium_storagecapacity.jpg'
       }
     },
     Premium: {
@@ -5037,6 +5062,7 @@
 
     LanguageData: {
       en: {
+		    dockyard: 'Dockyard',
         buildings: 'Buildings',
         economy: 'Economy',
         military: 'Military',
@@ -5891,6 +5917,7 @@
         click_: '<b>Clic</b>'
       },
       el: {                     // Thx Minoas, Panagiotis Papazoglou and panos78  for Translation
+	      dockyard: 'Εμπορευματικός λιμένας',
         buildings: 'Κτίρια',
         economy: 'Oικονομία',
         military: 'Στράτευμα',
@@ -6171,40 +6198,41 @@
         click_: '<b>Kλικ</b>'
       },
       es: {                     // Thx Max783 for Translation
+	      dockyard: 'Puerto de Carga',
         buildings: 'Edificios',
         economy: 'Economía',
         military: 'Milicia',
         towns: 'Ciudades',
         townHall: 'Intendencia',
-        palace: 'Palacio',
-        palaceColony: 'Residencia del Gobernador',
-        tavern: 'Taberna',
-        museum: 'Museo',
+        palace: 'Palace',
+        palaceColony: 'Governor\`s Residence',
+        tavern: 'Tavern',
+        museum: 'Museum',
         academy: 'Academia',
-        workshop: 'Taller de invenciones',
-        temple: 'Templo',
-        embassy: 'Embajada',
+        workshop: 'Workshop',
+        temple: 'Temple',
+        embassy: 'Embassy',
         warehouse: 'Depósito',
         dump: 'Almacén',
-        port: 'Puerto comercial',
-        branchOffice: 'Tienda',
-        wall: 'Muro',
-        safehouse: 'Escondite',
-        barracks: 'Cuartel',
-        shipyard: 'Astillero de Guerra',
+        port: 'Trading Port',
+        branchOffice: 'Trading Post',
+        wall: 'Town Wall',
+        safehouse: 'Hideout',
+        barracks: 'Barracks',
+        shipyard: 'Shipyard',
         forester: 'Forester\`s House',
-        carpentering: 'Carpinteria',
-        winegrower: 'Viñedo',
-        vineyard: 'Prensa de Vino',
-        stonemason: 'Cantera',
-        architect: 'Oficina del Arquitecto',
-        glassblowing: 'Mina de Cirstal',
-        optician: 'Optico',
-        alchemist: 'Torre del Alquimita',
-        fireworker: 'Area de Pruebas Pirotécnicas',
-        pirateFortress: 'Fortaleza pirata',
-        blackMarket: 'Mercado negro',
-        marineChartArchive: 'Archivo de cartas náuticas',
+        carpentering: 'Carpenter\`s Workshop',
+        winegrower: 'Winery',
+        vineyard: 'Wine Press',
+        stonemason: 'Stonemason',
+        architect: 'Architect\`s Office',
+        glassblowing: 'Glassblower',
+        optician: 'Optician',
+        alchemist: 'Alchemist\`s Tower',
+        fireworker: 'Firework Test Area',
+        pirateFortress: 'Pirate Fortress',
+        blackMarket: 'Black Market',
+        marineChartArchive: 'Sea Chart Archive',
         corruption: 'Corrupción',
         cultural: ' Bienes Culturales',
         population: 'Población',
@@ -6361,32 +6389,32 @@
         tr: 'Turco',
         nl: 'Holandés',
         // Units
-        phalanx: 'Hoplita',
-        steamgiant: 'Gigante a vapor',
-        spearman: 'Lancero',
-        swordsman: 'Espadachín',
-        slinger: 'Hondero',
-        archer: 'Arquero',
-        marksman: 'Fusilero',
-        ram: 'Ariete',
-        catapult: 'Catapulta',
-        mortar: 'Mortero',
-        gyrocopter: 'Girocóptero',
-        bombardier: 'Bombardero-Balón',
-        cook: 'Cocinero',
-        medic: 'Médico',
-        spartan: 'Espartano',
-        ship_ram: 'Barco-espolón',
-        ship_flamethrower: 'Barco lanza-llamas',
-        ship_steamboat: 'Barco-espolón de vapor',
-        ship_ballista: 'Barco-ballesta',
-        ship_catapult: 'Barco-catapulta',
-        ship_mortar: 'Barco-mortero',
-        ship_submarine: 'Submarino',
-        ship_paddlespeedship: 'Lancha de palas',
-        ship_ballooncarrier: 'Portaglobos',
-        ship_tender: 'Barco de mantenimiento',
-        ship_rocketship: 'Barco lanzamisiles',
+        phalanx: 'Hoplite',
+        steamgiant: 'Steam Giant',
+        spearman: 'Spearman',
+        swordsman: 'Swordsman',
+        slinger: 'Slinger',
+        archer: 'Archer',
+        marksman: 'Sulphur Carabineer',
+        ram: 'Battering Ram',
+        catapult: 'Catapult',
+        mortar: 'Mortar',
+        gyrocopter: 'Gyrocopter',
+        bombardier: 'Ballon-Bombardier',
+        cook: 'Cook',
+        medic: 'Doctor',
+        spartan: 'Spartan',
+        ship_ram: 'Ram Ship',
+        ship_flamethrower: 'Fire Ship',
+        ship_steamboat: 'Steam Ram',
+        ship_ballista: 'Ballista Ship',
+        ship_catapult: 'Catapult Ship',
+        ship_mortar: 'Mortar Ship',
+        ship_submarine: 'Diving Boat',
+        ship_paddlespeedship: 'Paddle Speedboat',
+        ship_ballooncarrier: 'Ballon Carrier',
+        ship_tender: 'Tender',
+        ship_rocketship: 'Rocket Ship',
         //settings descriptions
         cityOrder_description: 'Orden de la descripción de ciudades',
         fullArmyTable_description: 'Mostrar todos los tipos de unidades militares aún al no tenerlas',
@@ -7010,6 +7038,7 @@
         click_: '<b>Click</b>'
       },
       ru: {                     // Thx Toxa13 for Translation
+	      dockyard: 'Верфь',
         buildings: 'Здания',
         economy: 'Экономика',
         military: 'Войска',
@@ -9464,6 +9493,7 @@
       DUMP: 'dump',
       TRADING_PORT: 'port',
       TRADING_POST: 'branchOffice',
+	    DOCKYARD: 'dockyard',
       WALL: 'wall',
       HIDEOUT: 'safehouse',
       BARRACKS: 'barracks',
@@ -9724,350 +9754,435 @@
         happinessBonusWithTempleConversion: 2
       }
     },
-    BuildingData: {
-      academy: {
-        buildingId: 4,
-        maxLevel: 32,
-        wood: [64, 68, 115, 263, 382, 626, 982, 1330, 2004, 2665, 3916, 5156, 7446, 9753, 12751, 18163, 23691, 33451, 43571, 56729, 73832, 103459, 144203, 175058, 243930, 317208, 439967, 536310, 743789, 1027469, 1257244, 1736681],
-        glass: [0, 0, 0, 0, 225, 428, 744, 1089, 1748, 2454, 3786, 5216, 7862, 10729, 14599, 21627, 29321, 43020, 58213, 78724, 106414, 154857, 224146, 282571, 408877, 552141, 795252, 1006647, 1449741, 2079650, 2642546, 3790581],
-        marble: 0,
-        sulfur: 0,
-        wine: 0,
-        time: { a: 1440, b: 1, c: 1.2, d: 720 },
-        icon: 'skin/img/city/academy_l.png',
-        maxScientists: [0, 8, 12, 16, 22, 28, 35, 43, 51, 60, 69, 79, 89, 100, 111, 122, 134, 146, 159, 172, 185, 198, 212, 227, 241, 256, 271, 287, 302, 318, 335, 351, 368]
-      },
-      alchemist: {
-        buildingId: 22,
-        maxLevel: 32,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72050, 93778, 122021, 158740, 206471, 268524, 349194, 454063, 590393, 767620, 998018, 1297535, 1686906, 2193088],
-        glass: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51830, 67485, 87835, 114289, 148680, 193389, 251512, 327069, 425294, 552986, 718987, 934789, 1215329],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        icon: 'skin/img/city/alchemist_l.png'
-      },
-      architect: {
-        buildingId: 24,
-        maxLevel: 32,
-        wood: [185, 291, 413, 555, 720, 911, 1133, 1390, 1689, 2035, 2437, 2902, 3443, 4070, 4797, 5640, 6618, 7754, 9070, 10598, 12369, 14424, 16807, 19573, 22780, 26501, 30817, 35826, 41631, 48371, 56185, 65251],
-        glass: 0,
-        marble: [106, 160, 222, 295, 379, 475, 587, 716, 865, 1036, 1233, 1460, 1722, 2023, 2369, 2767, 3226, 3752, 4358, 5056, 5857, 6778, 7836, 9052, 10448, 12054, 13899, 16016, 18450, 21246, 24455, 28141],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2628 },
-        icon: 'skin/img/city/architect_l.png'
-      },
-      barracks: {
-        buildingId: 6,
-        maxLevel: 54,
-        wood: [48, 114, 195, 296, 420, 574, 766, 1003, 1297, 1662, 2115, 2676, 3371, 4234, 5304, 6630, 8275, 10314, 12843, 15979, 19868, 24690, 30669, 38083, 47277, 58676, 72812, 90341, 112076, 139028, 172448, 213889, 265276, 328996, 408008, 505984, 627473, 778121, 964924, 1196559, 1483787, 1839950, 2281591, 2829227, 3508295, 4350340, 5394474, 6689202, 8294664, 10285438, 12753995, 15815008, 19610663, 24317276],
-        glass: 0,
-        marble: [0, 0, 0, 0, 0, 0, 0, 0, 178, 431, 745, 1134, 1616, 2214, 2956, 3875, 5015, 6429, 8183, 10357, 13052, 16395, 20540, 25680, 32054, 39957, 49757, 61909, 76977, 95661, 118830, 147560, 183185, 227359, 282136, 350059, 434283, 538722, 668224, 828808, 1027933, 1274849, 1581022, 1960678, 2431450, 3015210, 3739070, 4636658, 5749665, 7129795, 8841156, 10963244, 13594633, 16857554],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 25200, b: 11, c: 1.1, d: 1728 },
-        icon: 'skin/img/city/barracks_l.png'
-      },
-      blackMarket: {
-        buildingId: 31,
-        maxLevel: 25,
-        wood: [440, 886, 1360, 1890, 2516, 3288, 4263, 5506, 7086, 9086, 11591, 14692, 18491, 23088, 28605, 35147, 42845, 51828, 62227, 74186, 87851, 103372, 120906, 140618, 162672],
-        glass: 0,
-        marble: [259, 525, 807, 1126, 1508, 1988, 2600, 3390, 4403, 5693, 7315, 9331, 11809, 14812, 18423, 22711, 27761, 33659, 40491, 48355, 57343, 67556, 79099, 92078, 106603],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 4321, b: 1, c: 1.1, d: 4627 },
-        icon: 'skin/img/city/blackmarket_l.png'
-      },
-      branchOffice: {
-        buildingId: 13,
-        maxLevel: 39,
-        wood: [48, 173, 346, 581, 896, 1314, 1863, 2580, 3509, 4706, 6241, 8203, 10699, 13866, 17872, 22926, 29286, 37272, 47283, 59806, 75447, 94954, 119245, 149453, 186977, 233530, 291225, 362658, 451015, 560208, 695038, 861391, 1066671, 1319984, 1632575, 2018312, 2494311, 3081693, 3806524],
-        glass: 0,
-        marble: [0, 0, 0, 0, 540, 792, 1123, 1555, 2115, 2837, 3762, 4945, 6450, 8359, 10774, 13820, 17654, 22469, 28503, 36051, 45482, 57240, 71883, 90092, 112712, 140776, 175556, 218617, 271878, 337705, 418978, 519260, 643007, 795710, 984146, 1216677, 1503619, 1857705, 2294648],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 108000, b: 11, c: 1.1, d: 9360 },
-        icon: 'skin/img/city/branchoffice_l.png'
-      },
-      carpentering: {
-        buildingId: 23,
-        maxLevel: 32,
-        wood: [63, 122, 191, 274, 372, 486, 620, 777, 962, 1178, 1432, 1730, 2078, 2486, 2964, 3524, 4178, 4945, 5841, 6890, 8117, 9550, 11229, 13190, 15484, 18166, 21299, 24963, 29245, 34247, 40096, 46930],
-        glass: 0,
-        marble: [0, 0, 0, 0, 0, 0, 0, 359, 444, 546, 669, 816, 993, 1205, 1459, 1765, 2131, 2571, 3097, 3731, 4490, 5402, 6496, 7809, 9383, 11274, 13543, 16265, 19531, 23450, 28154, 33798],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2808 },
-        icon: 'skin/img/city/carpentering_l.png'
-      },
-      dump: {
-        buildingId: 29,
-        maxLevel: 40,
-        wood: [640, 1152, 1766, 2504, 3388, 4450, 5724, 7253, 9088, 11289, 13931, 17101, 20905, 25470, 30948, 37522, 45410, 54876, 66236, 79867, 96223, 115852, 139407, 167672, 201592, 242293, 291136, 349749, 420081, 504483, 605763, 727300, 873143, 1048157, 1258171, 1510191, 1812613, 2175519, 2611007, 3133592],
-        glass: [701, 1146, 1668, 2278, 2991, 3526, 4803, 5946, 7283, 8847, 10678, 12819, 15324, 18257, 21687, 25700, 30395, 35889, 42316, 49837, 58635, 68929, 80973, 95065, 111553, 130843, 153414, 179821, 201716, 246864, 289157, 338642, 396536, 464274, 543528, 636253, 744742, 871676, 1020187, 1193945],
-        marble: [497, 932, 1445, 2051, 2762, 3609, 4604, 5778, 7164, 8799, 10728, 13005, 15691, 18862, 22602, 27016, 32225, 38371, 45623, 54181, 64278, 76194, 90256, 106847, 126424, 149528, 176787, 208956, 246913, 291702, 344555, 406921, 480512, 567350, 669817, 790730, 933408, 1101767, 1300431, 1534855],
-        sulfur: [384, 845, 1398, 2061, 2858, 3813, 4960, 6336, 7987, 9968, 12346, 15199, 18623, 22731, 27661, 33578, 40677, 49197, 59420, 71688, 86409, 104076, 125274, 150714, 181241, 217872, 261830, 314581, 377881, 453842, 544994, 654378, 785637, 943149, 1132163, 1358979, 1631159, 1957774, 2349714, 2820041],
-        wine: 0,
-        time: { a: 32000, b: 13, c: 1.17, d: 2160 },
-        icon: 'skin/img/city/dump_l.png'
-      },
-      embassy: {
-        buildingId: 12,
-        maxLevel: 32,
-        wood: [242, 415, 623, 873, 1173, 1532, 1964, 2482, 3103, 3849, 4743, 5817, 7105, 8651, 10507, 12733, 15610, 18498, 22457, 27074, 32290, 33764, 47240, 56812, 70157, 84318, 101310, 121979, 146503, 175932, 222202, 266778],
-        glass: 0,
-        marble: [155, 342, 571, 850, 1190, 1606, 2112, 2730, 3484, 4404, 5527, 6896, 8566, 10604, 13090, 16123, 19824, 24339, 29846, 36564, 45216, 47097, 66967, 81859, 104537, 129580, 158759, 193849, 236659, 288888, 358869, 437985],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 96000, b: 7, c: 1.05, d: 10080 },
-        icon: 'skin/img/city/embassy_l.png'
-      },
-      fireworker: {
-        buildingId: 27,
-        maxLevel: 32,
-        wood: [272, 353, 445, 551, 673, 813, 974, 1159, 1373, 1618, 1899, 2223, 2596, 3025, 3517, 4084, 4736, 5485, 6346, 7338, 8478, 9790, 11297, 13030, 14990, 17317, 19954, 22986, 26472, 30484, 35096, 40398],
-        glass: 0,
-        marble: [135, 212, 302, 405, 526, 665, 827, 1015, 1233, 1486, 1779, 2120, 2514, 2972, 3503, 4119, 4834, 5662, 6623, 7738, 9032, 10534, 12275, 13355, 16636, 19354, 22507, 26163, 30404, 35325, 41033, 47652],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2628 },
-        icon: 'skin/img/city/fireworker_l.png'
-      },
-      forester: {
-        buildingId: 18,
-        maxLevel: 32,
-        wood: [250, 430, 664, 968, 1364, 1878, 2546, 3415, 4544, 6013, 7922, 10403, 13629, 17823, 23274, 30362, 39574, 51552, 67123, 87363, 113680, 147889, 192360, 250173, 325258, 423034, 550049, 715169, 929826, 1208878, 1571646, 2043246],
-        glass: 0,
-        marble: [0, 104, 237, 410, 635, 928, 1309, 1803, 2446, 3282, 4368, 5781, 7617, 10422, 13108, 17142, 22386, 29204, 38068, 49589, 64569, 84041, 109356, 142266, 185046, 240663, 312965, 406956, 529144, 687989, 894489, 1162937],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        icon: 'skin/img/city/forester_l.png'
-      },
-      glassblowing: {
-        buildingId: 20,
-        maxLevel: 32,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72050, 93778, 122021, 158740, 206471, 268524, 349194, 454063, 590393, 767620, 998018, 1297535, 1686906, 2193088],
-        glass: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51830, 67485, 87835, 114289, 148680, 193389, 251512, 327069, 425294, 552986, 718987, 934789, 1215329],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        icon: 'skin/img/city/glassblowing_l.png'
-      },
-      museum: {
-        buildingId: 10,
-        maxLevel: 24,
-        wood: [560, 1435, 2748, 4716, 7669, 12099, 18744, 28710, 43661, 66086, 99724, 150181, 225866, 339394, 509686, 765124, 1148280, 1723016, 2585120, 3878276, 5818010, 8727610, 13092010, 19638612],
-        glass: 0,
-        marble: [280, 1190, 2573, 4676, 7871, 12729, 20112, 31335, 48394, 74323, 113736, 173643, 264701, 403110, 613492, 933272, 1419338, 2158157, 3281164, 4988135, 7582732, 11526516, 17521070, 26632791],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 18000, b: 1, c: 1.1, d: 14040 },
-        icon: 'skin/img/city/museum_r.png'
-      },
-      optician: {
-        buildingId: 25,
-        maxLevel: 32,
-        wood: [119, 188, 269, 362, 471, 597, 742, 912, 1108, 1335, 1600, 1906, 2261, 2673, 3152, 3706, 4348, 5096, 5962, 6966, 8131, 9482, 11050, 12868, 14978, 17424, 20262, 23553, 27373, 31804, 36943, 42904],
-        glass: 0,
-        marble: [0, 35, 96, 167, 249, 345, 455, 584, 733, 905, 1106, 1338, 1608, 1921, 2283, 2704, 3191, 3759, 4416, 5178, 6062, 7087, 8276, 9656, 11257, 13113, 15267, 17762, 20662, 24024, 27922, 32447],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2772 },
-        icon: 'skin/img/city/optician_l.png'
-      },
-      palace: {
-        buildingId: 11,
-        maxLevel: 11,
-        wood: [712, 5823, 16048, 36496, 77392, 159184, 322768, 649936, 1304272, 2612944, 4743517],
-        glass: [0, 0, 0, 0, 21188, 42400, 84824, 169672, 339368, 678760, 1357543],
-        marble: [0, 1433, 4546, 10770, 23218, 48114, 97906, 197490, 396658, 794994, 1591666],
-        sulfur: [0, 0, 3088, 10300, 24725, 53573, 111269, 226661, 457445, 919013, 1842149],
-        wine: [0, 0, 0, 10898, 22110, 44534, 89382, 179078, 358470, 717254, 1434821],
-        time: { a: 11520, b: 1, c: 1.4, d: 0 },
-        icon: 'skin/img/city/palace_l.png'
-      },
-      palaceColony: {
-        buildingId: 17,
-        maxLevel: 11,
-        wood: [712, 5823, 16048, 36496, 77392, 159184, 322768, 649936, 1304272, 2612944, 4743517],
-        glass: [0, 0, 0, 0, 21188, 42400, 84824, 169672, 339368, 678760, 1357543],
-        marble: [0, 1433, 4546, 10770, 23218, 48114, 97906, 197490, 396658, 794994, 1591666],
-        sulfur: [0, 0, 3088, 10300, 24725, 53573, 111269, 226661, 457445, 919013, 1842149],
-        wine: [0, 0, 0, 10898, 22110, 44534, 89382, 179078, 358470, 717254, 1434821],
-        time: { a: 11520, b: 1, c: 1.4, d: 0 },
-        icon: 'skin/img/city/palaceColony_l.png'
-      },
-      pirateFortress: {
-        buildingId: 30,
-        maxLevel: 30,
-        wood: [450, 906, 1389, 1935, 2593, 3427, 4516, 5950, 7834, 10284, 13430, 17415, 22394, 28534, 36015, 45029, 55779, 68482, 83366, 100671, 120648, 143562, 169686, 199309, 232729, 270255, 312210, 358926, 410748, 468032],
-        glass: 0,
-        marble: [250, 505, 783, 1112, 1534, 2103, 2883, 3949, 5388, 7296, 9782, 12964, 16970, 21938, 28019, 35370, 44162, 54573, 66793, 81020, 97463, 116341, 137883, 162325, 189915, 220912, 255580, 294197, 337048, 384429],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 1550, b: 1, c: 1.2, d: 1800 },
-        icon: 'skin/img/city/pirateFortress_l.png'
-      },
-      port: {
-        buildingId: 3,
-        maxLevel: 47,
-        wood: [60, 150, 274, 429, 637, 894, 1207, 1645, 2106, 2735, 3537, 4492, 5689, 7103, 8850, 11094, 13731, 17062, 21097, 25965, 31810, 39190, 47998, 58713, 71955, 87627, 107102, 130776, 159019, 193938, 235849, 286514, 348718, 423990, 513947, 625160, 758178, 919693, 1116013, 1353517, 1642274, 1990223, 2411061, 2923229, 3541580, 4291524, 5199343],
-        glass: 0,
-        marble: [0, 0, 0, 0, 0, 176, 326, 540, 791, 1138, 1598, 2176, 2928, 3859, 5051, 6628, 8566, 11089, 14265, 18241, 23197, 29642, 37636, 47703, 60556, 76367, 96639, 122156, 153754, 194089, 244300, 307174, 386955, 486969, 610992, 769302, 965792, 1212790, 1523570, 1913072, 2403313, 3015688, 3782992, 4749576, 5959027, 7478201, 9383420],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 50400, b: 23, c: 1.15, d: 1512 },
-        loadingSpeed: [10, 30, 60, 93, 129, 169, 213, 261, 315, 373, 437, 508, 586, 672, 766, 869, 983, 1108, 1246, 1398, 1565, 1748, 1950, 2172, 2416, 2685, 2980, 3305, 3663, 4056, 4489, 4965, 5488, 6064, 6698, 7394, 8161, 9004, 9931, 10951, 12073, 13308, 14666, 16159, 17803, 19616, 21613, 23813, 26237],
-        icon: 'skin/img/city/port_l.png'
-      },
-      safehouse: {
-        buildingId: 16,
-        maxLevel: 32,
-        wood: [113, 248, 402, 578, 779, 1007, 1267, 1564, 1903, 2288, 2728, 3230, 3801, 4453, 5195, 6042, 7008, 8108, 9363, 10793, 12423, 14282, 16401, 18816, 21570, 24709, 28288, 32368, 37019, 42321, 48365, 55255],
-        glass: 0,
-        marble: [0, 0, 0, 129, 197, 275, 366, 471, 593, 735, 900, 1090, 1312, 1569, 1866, 2212, 2613, 3078, 3617, 4243, 4968, 5810, 6787, 7919, 9233, 10758, 12526, 14577, 16956, 19716, 22917, 26631],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 96000, b: 7, c: 1.05, d: 12960 },
-        icon: 'skin/img/city/safehouse_l.png'
-      },
-      shipyard: {
-        buildingId: 5,
-        maxLevel: 38,
-        wood: [98, 202, 324, 477, 671, 914, 1222, 1609, 2096, 2711, 3485, 4459, 5688, 7238, 9190, 11648, 14746, 18650, 23568, 29765, 37573, 47412, 59808, 75428, 95108, 119906, 151151, 190520, 240124, 302626, 381378, 480605, 605632, 763166, 961659, 1211759, 1526886, 1923947],
-        glass: 0,
-        marble: [0, 0, 0, 0, 0, 778, 1052, 1397, 1832, 2381, 3070, 3941, 5037, 6420, 8161, 10354, 13118, 16601, 20989, 26517, 33484, 42261, 53321, 67256, 84814, 106938, 134814, 169937, 214192, 269954, 340214, 428741, 540285, 680832, 857920, 1081051, 1362196, 1716438],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 64800, b: 7, c: 1.05, d: 7128 },
-        icon: 'skin/img/city/shipyard_l.png'
-      },
-      stonemason: {
-        buildingId: 19,
-        maxLevel: 32,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72050, 93778, 122021, 158740, 206471, 268524, 349194, 454063, 590393, 767620, 998018, 1297535, 1686906, 2193088],
-        glass: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51830, 67485, 87835, 114289, 148680, 193389, 251512, 327069, 425294, 552986, 718987, 934789, 1215329],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        icon: 'skin/img/city/stonemason_l.png'
-      },
-      temple: {
-        buildingId: 28,
-        maxLevel: 38,
-        wood: [216, 228, 333, 465, 598, 760, 958, 1197, 1432, 1773, 2112, 2512, 3082, 3655, 4458, 5126, 6232, 7167, 8687, 10247, 11784, 14228, 16752, 19265, 23156, 26663, 32026, 36830, 43256, 50782, 59591, 68528, 80385, 96068, 108392, 129447, 148864, 174363],
-        glass: [173, 190, 290, 423, 567, 752, 989, 1290, 1610, 2080, 2586, 3210, 4109, 5084, 6471, 7765, 9851, 11821, 14952, 18402, 22082, 27824, 34184, 41020, 51514, 61817, 77477, 92972, 113941, 139577, 170910, 205093, 251034, 313054, 368577, 459304, 551164, 673645],
-        marble: 0,
-        sulfur: 0,
-        wine: 0,
-        time: { a: 2160, b: 1, c: 1.1, d: 0 },
-        icon: 'skin/img/city/temple_l.png'
-      },
-      tavern: {
-        buildingId: 9,
-        maxLevel: 47,
-        wood: [101, 222, 367, 541, 750, 1001, 1302, 1663, 2097, 2617, 3241, 3990, 4888, 5967, 7261, 8814, 10678, 12914, 15598, 18818, 22683, 27320, 32885, 39562, 47576, 57192, 68731, 82578, 99194, 119134, 143061, 171774, 206230, 247577, 297193, 356732, 428179, 513916, 616800, 740261, 888413, 1066196, 1279537, 1535545, 1842756, 2211407, 2653789],
-        glass: 0,
-        marble: [0, 0, 0, 94, 122, 158, 206, 267, 348, 452, 587, 764, 993, 1290, 1677, 2181, 2835, 3685, 4791, 6228, 8097, 10526, 13684, 17789, 23125, 30063, 39082, 50806, 66048, 85862, 111621, 145107, 188640, 245232, 318801, 414441, 538774, 700406, 910528, 1183686, 1538791, 2000427, 2600557, 3380725, 4394943, 5713425, 7427454],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 10800, b: 1, c: 1.06, d: 10440 },
-        icon: 'skin/img/city/taverne_r.png',
-        wineUse: [0, 4, 8, 13, 18, 24, 30, 37, 44, 51, 60, 68, 78, 88, 99, 110, 122, 136, 150, 165, 180, 197, 216, 235, 255, 277, 300, 325, 351, 378, 408, 439, 472, 507, 544, 584, 626, 670, 717, 766, 818, 874, 933, 995, 1060, 1129, 1202, 1280, 1362],
-        wineUse2: [0, 12, 24, 39, 54, 72, 90, 111, 132, 153, 180, 204, 234, 264, 297, 330, 366, 408, 450, 495, 540, 591, 648, 705, 765, 831, 900, 975, 1053, 1134, 1224, 1317, 1416, 1521, 1632, 1752, 1878, 2010, 2151, 2298, 2454, 2622, 2799, 2985, 3180, 3387, 3606, 3840, 4086]
-      },
-      townHall: {
-        buildingId: 0,
-        maxLevel: 40,
-        wood: [0, 158, 335, 623, 923, 1390, 2015, 2706, 3661, 4776, 6173, 8074, 10281, 13023, 16424, 20986, 25423, 32285, 40232, 49286, 61207, 74804, 93956, 113035, 141594, 170213, 210011, 258875, 314902, 387656, 471194, 572580, 695615, 854728, 1037814, 1274043, 1714396, 1876185, 2276285, 2761291],
-        glass: 0,
-        marble: [0, 0, 0, 0, 285, 551, 936, 1411, 2091, 2945, 4072, 5664, 7637, 10214, 13575, 18254, 23250, 31022, 40599, 52216, 68069, 87316, 115101, 145326, 191053, 241039, 312128, 403825, 515593, 666228, 850031, 1084292, 1382826, 1783721, 2273685, 2930330, 3692589, 4756439, 6058680, 7716365],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 1800, b: 1, c: 1.17, d: -1080 },
-        icon: 'skin/img/city/townhall_l.png',
-        actionPointsMax: [0, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7, 8, 8, 8, 8, 9, 9, 9, 9, 10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 12, 12, 13]
-      },
-      vineyard: {
-        buildingId: 26,
-        maxLevel: 32,
-        wood: [339, 423, 520, 631, 758, 905, 1074, 1269, 1492, 1749, 2045, 2384, 2775, 3225, 3741, 4336, 5019, 5813, 6875, 7941, 8944, 10319, 11900, 13718, 15809, 18215, 20978, 24159, 27816, 32021, 36857, 42419],
-        glass: 0,
-        marble: [123, 198, 285, 387, 504, 640, 798, 981, 1194, 1440, 1726, 2058, 2443, 2889, 3407, 4008, 4705, 5513, 6450, 7537, 8800, 10263, 11961, 13930, 16214, 18864, 21938, 25503, 29639, 34437, 40002, 46457],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2232 },
-        icon: 'skin/img/city/vineyard_l.png'
-      },
-      wall: {
-        buildingId: 8,
-        maxLevel: 48,
-        wood: [114, 361, 657, 1012, 1439, 1951, 2565, 3302, 4186, 5247, 6521, 8049, 9882, 12083, 14724, 17892, 21695, 26258, 31733, 38304, 46189, 55650, 67004, 80629, 96979, 116599, 140143, 168395, 202298, 242982, 291802, 350387, 420689, 505049, 606284, 727765, 873541, 1048473, 1258393, 1510294, 1812577, 2175317, 2610603, 3132948, 3759764, 4511941, 5414554, 6497688],
-        glass: 0,
-        marble: [0, 203, 516, 892, 1344, 1885, 2535, 3315, 4251, 5374, 6721, 8338, 10279, 12608, 15402, 18755, 22779, 27607, 33402, 40355, 48699, 58711, 70726, 85144, 102446, 123208, 148122, 178019, 213896, 256948, 308610, 370605, 444998, 534270, 641397, 769949, 924213, 1109328, 1331467, 1598031, 1917913, 2301767, 2762392, 3315144, 3978446, 4774411, 5729566, 6875751],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 57600, b: 11, c: 1.1, d: 3240 },
-        icon: 'skin/img/city/wall.png'
-      },
-      warehouse: {
-        buildingId: 7,
-        maxLevel: 40,
-        wood: [160, 288, 442, 626, 847, 1113, 1431, 1813, 2272, 2822, 3483, 4275, 5226, 6368, 7737, 9380, 11353, 13719, 16559, 19967, 24056, 28963, 34852, 41918, 50398, 60574, 72784, 87437, 105021, 126121, 151441, 181825, 218286, 262039, 314543, 377548, 453153, 543880, 652752, 783398],
-        glass: 0,
-        marble: [0, 0, 0, 96, 211, 349, 515, 714, 953, 1240, 1584, 1997, 2492, 3086, 3800, 4656, 5683, 6915, 8394, 10169, 12299, 14855, 17922, 21602, 26019, 31319, 37678, 45310, 54468, 65458, 78645, 94471, 113461, 136249, 163595, 196409, 235787, 283041, 339745, 407790],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 2880, b: 1, c: 1.14, d: 2160 },
-        icon: 'skin/img/city/warehouse_l.png'
-      },
-      winegrower: {
-        buildingId: 21,
-        maxLevel: 32,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72050, 93778, 122021, 158740, 206471, 268524, 349194, 454063, 590393, 767620, 998018, 1297535, 1686906, 2193088],
-        glass: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51830, 67485, 87835, 114289, 148680, 193389, 251512, 327069, 425294, 552986, 718987, 934789, 1215329],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        icon: 'skin/img/city/winegrower_l.png'
-      },
-      workshop: {
-        buildingId: 15,
-        maxLevel: 32,
-        wood: [206, 383, 569, 781, 1023, 1299, 1613, 1972, 2380, 2846, 3377, 3982, 4672, 5458, 6355, 7377, 8542, 9870, 11385, 13111, 15078, 17714, 19481, 22796, 26119, 29909, 34228, 39153, 44766, 51166, 58462, 66778],
-        glass: 0,
-        marble: [89, 167, 251, 349, 461, 592, 744, 920, 1125, 1362, 1637, 1956, 2326, 2755, 3253, 3831, 4500, 5279, 6180, 7226, 8439, 9776, 11477, 13373, 15570, 18118, 21074, 24503, 28481, 33095, 38447, 44656],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 96000, b: 7, c: 1.05, d: 11880 },
-        icon: 'skin/img/city/workshop_l.png'
-      },
-      marineChartArchive: { //time is not correct
-        buildingId: 32,
-        maxLevel: 40,
-        wood: [578, 1298, 2133, 3101, 4226, 5529, 7042, 8795, 10830, 13191, 15928, 19106, 22790, 27064, 32021, 37772, 44443, 52183, 61158, 71571, 83650, 97663, 113916, 132771, 154642, 180012, 209442, 243579, 283179, 329115, 382401, 444214, 515915, 599089, 695571, 807490, 937316, 1087914, 1262609, 1465254],
-        glass: [160, 610, 1142, 1769, 2507, 3379, 4409, 5624, 7057, 8750, 10745, 13100, 15879, 19158, 23028, 27594, 32984, 39342, 46843, 55696, 66143, 78470, 93015, 110179, 130434, 154332, 182532, 215809, 255077, 301411, 356087, 420603, 496733, 586566, 692571, 817653, 965252, 1139419, 1344934, 1587444],
-        marble: [345, 1065, 1915, 2917, 4100, 5497, 7143, 9087, 11380, 14087, 17280, 21050, 25495, 30742, 36935, 44241, 52862, 63035, 75038, 89203, 105917, 125641, 148914, 176377, 208781, 247021, 292142, 345385, 408211, 482347, 569828, 673054, 794862, 938595, 1108199, 1308334, 1544491, 1823158, 2151984, 2539998],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 1550, b: 1, c: 1.2, d: 1800 },
-        icon: 'skin/img/city/marinechartarchive_l.png'
-      }
-    }
+		BuildingData:
+		{
+			dockyard:
+			{
+			  buildingId:33,
+			  maxLevel:50,
+			  wood:[504483,605763,727300,873144,1048157,1258172,1510191,1812613,2175519,2611007,3133593,3760773,4513481,5416842,6501009,7802168,9363751,11237881,13487113,16186522,19426211,23314315,27980612,33580856,40301974,48368305,58049091,69667459,83611213,100345772,120429707,144533388,173461356,208179178,249845678,299851616,359866107,431892337,518334422,622077657,746584820,896011756,1075346089,1290573705,1548878546,1858882405,2230932698,2677447853,3213331811,3856471495],
+			  wine:0,
+			  marble:[291703,344555,406921,480512,567350,669818,790731,933409,1101768,1300432,1534855,1811536,2138093,2523518,2978421,3515328,4149020,4896945,5779696,6821575,8051270,9502636,11215633,13237425,15623676,18440085,21764196,25687530,30318105,35783412,42233927,49847246,58832983,69438540,81955911,96729733,114166765,134747092,159037342,187706285,221543249,261479849,308615640,364248387,429909798,507407694,598875786,706832418,834249904,984636364],
+			  glass:[246865,289158,338642,396537,464275,543528,636254,744743,871676,1020188,1193946,1397298,1635285,1913806,2239765,2621241,3067690,3590178,4201655,4917280,5754789,6734942,7882035,9224500,10795613,12634317,14786189,17304567,20251874,23701164,27737937,32462251,37991209,44461856,52034581,60897089,71269056,83407573,97613516,114239010,133696151,156467225,183116658,214305012,250805354,293522418,343515036,402022375,470494660,550629117],
+			  sulfur:0,
+			  time:[{a:125660,b:37,c:1.06,d:2808},{a:125031,b:56,c:1.069394,d:0}],
+			  dur:[271230,316800,370800,435600,507600,594000,698400,817200,957600,1119600,1310400,1533600,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000],
+			  icon:'/cdn/all/both/img/city/dockyard_l_small.png'
+			},
+			academy:
+			{
+				buildingId:4,
+				maxLevel: 50,
+				wood:[64,68,115,263,382,626,982,1330,2004,2665,3916,5156,7446,9753,12751,18163,23691,33451,43572,56729,73833,103459,144203,175058,243930,317208,439968,536310,743789,1027470,1257246,1736683,2398948,3313760,4577426,6322978,8734177,12064860,16665662,23020930,31799710,43926182,60676950,83815441,115777543,159928042,220914850,305158310,421527091,582271834],
+				wine:0,
+				marble:0,
+				glass:[0,0,0,0,225,428,744,1089,1748,2454,3786,5216,7862,10729,14599,21627,29322,43020,58213,78724,106414,154857,224146,282572,408877,552141,795252,1006648,1449741,2079651,2642548,3790583,5437373,7799598,11188075,16048650,23020865,33022105,47368310,67947114,97466224,139809688,200548951,287675926,412654558,591929211,849088381,1217968409,1747105576,2506122386],
+				sulfur:0,
+				maxScientists:[0,8,12,16,22,28,35,43,51,60,69,79,89,100,111,122,134,146,159,172,185,198,212,227,241,256,271,287,302,318,335,351,368,385,404,424,444,466,488,512,537,563,590,619,649,680,713,748,784,822,862],
+				time:{a:1440,b:1,c:1.2,d:720,e:[983]},
+				dur:(()=>{var t=[];var c={a:1440,b:1,c:1.2,d:720,e:[983]};for(var i=0;i<50;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/academy_l.png'
+			},
+			alchemist:
+			{
+				buildingId:22,
+				maxLevel: 61,
+				wood:[274,467,718,1045,1469,2021,2738,3671,4883,6459,8508,11172,14634,19135,24987,32594,42483,55339,72051,93778,122022,158740,206472,268525,349194,454063,590393,767621,998019,1297536,1686907,2193090,2851161,3706696,4818949,6264951,8144848,10588838,13766186,17896947,23267208,30248900,39325559,51125812,66466917,86411362,112340452,146049973,189874567,246849419,320920474,417217714,542410456,705169252,916766387,1191856573,1549491900,2014441336,2618906170,3404750192,4426399083],
+				wine:0,
+				marble:[0,116,255,436,671,977,1375,1892,2564,3437,4572,6049,7968,10462,13705,17921,23402,30527,39790,51831,67485,87835,114290,148681,193390,251512,327069,425295,552987,718988,934789,1215330,1580064,2054260,2670767,3472295,4514372,5869187,7630598,9920629,12897924,16768741,21801234,28344037,36850411,47909647,62287886,80981202,105284598,136881725,177961516,231369827,300806590,391082130,508450405,661042257,859428691,1117353190,1452683817,1888651047,2455457089],
+				glass:0,
+				sulfur:0,
+				time:{a:72000,b:11,c:1.1,d:6120},
+				dur:(()=>{var t=[];var c={a:72000,b:11,c:1.1,d:6120};for(var i=0;i<61;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/alchemist_l.png'
+			},
+			architect:
+			{
+				buildingId:24,
+				maxLevel: 50,
+				wood:[185,291,413,555,720,911,1133,1390,1689,2035,2437,2902,3443,4070,4797,5640,6619,7754,9070,10598,12369,14424,16808,19573,22781,26502,30818,35825,41633,48371,56186,65252,75780,88008,102209,118701,137854,160098,185931,215933,250775,291239,338233,392809,456192,529802,615289,714570,829871,963777,320920474,417217714,542410456,705169252,916766387,1191856573,1549491900,2014441336,2618906170,3404750192,4426399083],
+				wine:0,
+				marble:[106,160,222,295,379,475,587,716,865,1036,1233,1460,1722,2023,2369,2767,3226,3753,4359,5056,5857,6778,7836,9052,10449,12055,13899,16017,18451,21246,24455,28141,32382,37263,42880,49343,56780,65338,75186,86519,99560,114566,131834,151705,174571,200884,231162,266004,306098,352235,177961516,231369827,300806590,391082130,508450405,661042257,859428691,1117353190,1452683817,1888651047,2455457089],
+				glass:0,
+				sulfur:0,
+				time:{a:125660,b:37,c:1.06,d:2628},
+				dur:(()=>{var t=[];var f=[{a:125660,b:37,c:1.06,d:2628},{a:156455,b:68,c:1.068703,d:0,e:{37:-1,43:1,48:1,49:1}}];for(var i=0;i<50;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=i<32?Math.round(g):Math.floor(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/architect_l.png'
+			},
+			barracks:
+			{
+				buildingId:6,
+				maxLevel: 49,
+				wood:[49,114,195,296,420,574,766,1003,1297,1662,2115,2676,3371,4234,5304,6630,8275,10314,12843,15979,19868,24690,30669,38083,47277,58676,72812,90341,112076,139028,172448,213889,265276,328996,408008,505984,627473,778120,964923,1196558,1483785,1839947,2281588,2829223,3508290,4350333,5394466,6689191,8294651,10285438,12753995,15815008,19610663,24317276],
+				wine:0,
+				marble:[0,0,0,0,0,0,0,0,178,431,745,1134,1616,2214,2956,3875,5015,6429,8183,10357,13052,16395,20540,25680,32054,39957,49757,61909,76977,95661,118830,147560,183185,227359,282136,350059,434283,538721,668224,828808,1027932,1274847,1581020,1960675,2431447,3015205,3739064,4636650,5749656,7129795,8841156,10963244,13594633,16857554],
+				glass:0,
+				sulfur:0,
+				time:{a:25200,b:11,c:1.1,d:1728,e:[732]},
+				dur:(()=>{var t=[];var c={a:25200,b:11,c:1.1,d:1728,e:[732]};for(var i=0;i<49;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/barracks_r.png'
+			},
+			blackMarket:
+			{
+				buildingId:31,
+				maxLevel: 25,
+				wood:[440,887,1360,1890,2516,3288,4263,5505,7086,9086,11590,14691,18489,23088,28600,35143,42839,51820,62218,74175,87838,103356,120888,140596,162647],
+				wine:0,
+				marble:[260,525,807,1126,1509,1988,2601,3390,4403,5693,7315,9331,11807,14812,18420,22708,27757,33654,40486,48348,57334,67546,79087,92064,106587],
+				glass:0,
+				sulfur:0,
+				tax:(()=>{var tax=[];for(var i=0;i<25;i++){tax.push(-(i+1)+29-(i==23?1:(i==24?3:0)));}return tax;})(),
+				time:{a:4321,b:1,c:1.1,d:4627},
+				dur:(()=>{var t=[];var c={a:4321,b:1,c:1.1,d:4627};for(var i=0;i<25;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/blackmarket_l.png'
+			},
+			branchOffice:
+			{
+				buildingId:13,
+				maxLevel: 72,
+				wood:[48,173,346,581,896,1314,1863,2580,3509,4706,6241,8203,10699,13866,17872,22926,29286,37273,47283,59807,75448,94955,119245,149454,186977,233530,291226,362658,451015,560208,695038,861391,1066671,1319986,1632576,2018313,2494313,3081696,3806527,4701842,5807739,7173750,8861054,10945220,13519593,16699472,20627275,25478918,31471693,38874000,48017368,59311304,73261632,90493151,111777613,138068292,170542676,210655204,260202409,321403375,396999129,490375398,605714254,748181411,924157588,1141524281,1410016756,1741660064,2151307610,2657306400,3282318749,4054337268],
+				wine:0,
+				marble:[0,0,0,0,540,792,1123,1555,2115,2837,3762,4945,6450,8359,10774,13820,17654,22469,28503,36052,45482,57240,71883,90093,112713,140776,175556,218616,271879,337703,418980,519261,643008,795711,984147,1216678,1503620,1857706,2294649,2834363,3501021,4324482,5341624,6598005,8149893,10066794,12434562,15359241,18971822,23434103,28945937,35754186,44163773,54551344,67382130,83230789,102807143,126987967,156856259,193749742,239320781,295610388,365139630,451022544,557105608,688140010,849994448,1049917969,1296864638,1601894565,1978669263,2444063509],
+				glass:0,
+				sulfur:0,
+				cap:(()=>{var cap=[];for(var i=0;i<71;i++){cap.push(i<39?400*Math.pow(i+1,2):80218*Math.pow(Math.exp(0.052),i+1));}return cap;})(),
+				time:{a:108000,b:11,c:1.1,d:9360},
+				dur:(()=>{var t=[];var c={a:108000,b:11,c:1.1,d:9360};for(var i=0;i<72;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/branchoffice_l.png'
+			},
+			carpentering:
+			{
+				buildingId:23,
+				maxLevel: 50,
+				wood:[63,122,192,274,372,486,620,777,962,1178,1432,1730,2078,2486,2964,3524,4178,4945,5841,6890,8117,9551,11229,13190,15484,18165,21299,24963,29245,34249,40096,46930,54928,64290,75248,88074,103085,120655,141220,165290,193462,226436,265030,310202,363073,424955,497385,582160,681384,797520],
+				wine:0,
+				marble:[0,0,0,0,0,0,0,359,444,546,669,816,993,1205,1459,1765,2131,2571,3098,3731,4491,5402,6496,7809,9384,11275,13543,16265,19531,23451,28154,33799,40575,48711,58478,70203,84279,101178,121464,145818,175056,210155,252292,302878,363607,436512,524034,629105,755244,906674],
+				glass:0,
+				sulfur:0,
+				time:{a:125660,b:37,c:1.06,d:2808},
+				dur:(()=>{var t=[];var f=[{a:125660,b:37,c:1.06,d:2808},{a:125031,b:56,c:1.069394,d:0}];for(var i=0;i<50;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=i<32?Math.round(g):Math.floor(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/carpentering_l.png'
+			},
+			dump:
+			{
+				buildingId:29,
+				maxLevel: 80,
+				wood:[640,1152,1766,2504,3388,4450,5724,7253,9088,11289,13931,17101,20905,25470,30948,37522,45410,54876,66236,79867,96224,115853,139408,167673,201592,242294,291137,349749,420082,504483,605763,727300,873144,1048157,1258172,1510191,1812613,2175519,2611007,3133593,3760773,4513481,5416842,6501009,7802168,9363751,11237881,13487113,16186522,19426211,23314315,27980612,33580856,40301974,48368305,58049091,69667459,83611213,100345772,120429707,144533388,173461356,208179178,249845678,299851616,359866107,431892337,518334422,622077657,746584820,896011756,1075346089,1290573705,1548878546,1858882405,2230932698,2677447853,3213331811,3856471495,4628333851],
+				wine:0,
+				marble:[497,932,1445,2051,2762,3609,4604,5778,7164,8799,10728,13005,15691,18862,22602,27016,32225,38371,45623,54181,64279,76195,90256,106847,126425,149528,176788,208956,246913,291703,344555,406921,480512,567350,669818,790731,933409,1101768,1300432,1534855,1811536,2138093,2523518,2978421,3515328,4149020,4896945,5779696,6821575,8051270,9502636,11215633,13237425,15623676,18440085,21764196,25687530,30318105,35783412,42233927,49847246,58832983,69438540,81955911,96729733,114166765,134747092,159037342,187706285,221543249,261479849,308615640,364248387,429909798,507407694,598875786,706832418,834249904,984636364,1162132312],
+				glass:[701,1146,1668,2278,2991,3526,4803,5946,7283,8847,10678,12819,15325,18257,21687,25700,30395,35889,42316,49837,58635,68930,80974,95066,111554,130844,153414,179821,201717,246865,289158,338642,396537,464275,543528,636254,744743,871676,1020188,1193946,1397298,1635285,1913806,2239765,2621241,3067690,3590178,4201655,4917280,5754789,6734942,7882035,9224500,10795613,12634317,14786189,17304567,20251874,23701164,27737937,32462251,37991209,44461856,52034581,60897089,71269056,83407573,97613516,114239010,133696151,156467225,183116658,214305012,250805354,293522418,343515036,402022375,470494660,550629117,644412042],
+				sulfur:[384,845,1398,2061,2858,3813,4960,6336,7987,9968,12346,15199,18623,22731,27661,33578,40677,49197,59420,71688,86410,104076,125275,150714,181241,217873,261831,314582,377882,453843,544995,654378,785638,943149,1132163,1358980,1631160,1957775,2349715,2820041,3384508,4061962,4875016,5850814,7021931,8427462,10114328,12138842,14568589,17484682,20984469,25184783,30225845,36275940,43537042,52251547,62710373,75262669,90327471,108407688,130106896,156149483,187404832,224916345,269936275,323967529,388813842,466639986,560044045,672144141,806682527,968150521,1161938432,1394515513,1673645920,2008647905,2410704893,2893238813,3472358170,4167395793],
+				cp:[32000,65401,101073,139585,181437,227119,277128,331991,392268,458564,531535,611896,700427,797983,905498,1024000,1154614,1298578,1457248,1632119,1824830,2037185,2271165,2528951,2812939,3125764,3470326,3849813,4267731,4727939,5234678,5792619,6406896,7083160,7827629,8647143,9549229,10542172,11635086,12838003,14161964,15619122,17222851,18987875,20930401,23068269,25421121,28010583,30860463,33996977,37448993,41248299,45429902,50032358,55098129,60673986,66811447,73567262,81003948,89190382,98202448,108123754,119046431,131072000,144312338,158890744,174943109,192619216,212084166,233519956,257127222,283127160,311763649,343305589,378049493,416322336,458484710,504934306,556109751,612494861],
+				time:{a:32000,b:13,c:1.17,d:2160},
+				dur:(()=>{var t=[];var c={a:32000,b:13,c:1.17,d:2160};for(var i=0;i<80;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/dump_r.png'
+			},
+			embassy:
+			{
+				buildingId:12,
+				maxLevel: 78,
+				wood:[242,415,623,873,1173,1532,1964,2482,3103,3849,4743,5817,7105,8651,10507,12733,15404,18610,22457,27074,32614,39261,47239,56811,68299,82084,98625,118475,142295,170879,205180,246341,295759,355091,426325,511850,614532,737813,885825,1063530,1276884,1533039,1840581,2209819,2653129,3185371,3824386,4591594,5512710,6618610,7946365,9540479,11454387,13752243,16511069,19823342,23800088,28574605,34306934,41189221,49452159,59372718,71283433,85583548,102752396,123365475,148113727,177826706,213500383,256330529,307752797,369490846,443614117,532607199,639453115,767733306,921747687,1106658773],
+				wine:0,
+				marble:[155,342,571,850,1190,1606,2112,2730,3484,4404,5527,6896,8566,10604,13090,16123,19824,24339,29846,36566,44764,54765,66967,81853,100014,122170,149201,182178,222411,271495,331377,404433,493595,602413,735223,897312,1095135,1336570,1631233,1990858,2429766,2965437,3619203,4417100,5390902,6579391,8029896,9800182,11960748,14597638,17815861,21743579,26537210,32387654,39527897,48242292,58877879,71858208,87700204,107034757,130631842,159431185,194579686,237477091,289831740,353728594,431712268,526888372,643047178,784814575,957836281,1169002678,1426723219,1741261318,2125143080,2593656142,3165458480,3863321442],
+				glass:0,
+				sulfur:0,
+				dp:(()=>{var dp=[];for(var i=0;i<78;i++){dp.push(i+3);}return dp;})(),
+				time:{a:96000,b:7,c:1.05,d:10080},
+				dur:(()=>{var t=[];var c={a:96000,b:7,c:1.05,d:10080};for(var i=0;i<78;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/embassy_l.png'
+			},
+			fireworker:
+			{
+				buildingId:27,
+				maxLevel: 50,
+				wood:[273,353,445,551,673,813,974,1159,1373,1618,1899,2223,2596,3025,3517,4084,4736,5486,6347,7339,8479,9790,11297,13031,15025,17318,19955,22987,26474,30484,35096,40400,46505,53533,61624,70937,81658,93999,108205,124557,143382,165051,189995,218708,251761,289810,333608,384026,442063,508872],
+				wine:0,
+				marble:[135,212,302,405,526,665,827,1015,1233,1486,1779,2120,2514,2972,3503,4119,4834,5662,6624,7739,9033,10534,12275,14294,16637,19354,22507,26163,30405,35325,41033,47653,55341,64269,74638,86679,100664,116904,135765,157668,183106,212647,246954,286796,333066,386801,449205,521677,605841,703583],
+				glass:0,
+				sulfur:0,
+				time:{a:125660,b:37,c:1.06,d:2628},
+				dur:(()=>{var t=[];var f=[{a:125660,b:37,c:1.06,d:2628},{a:156455,b:68,c:1.068703,d:0,e:{37:-1,43:1,48:1,49:1}}];for(var i=0;i<50;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=i<32?Math.round(g):Math.floor(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/fireworker_l.png'
+			},
+			forester:
+			{
+				buildingId:18,
+				maxLevel: 61,
+				wood:[250,430,664,968,1364,1878,2546,3415,4544,6013,7922,10403,13629,17823,23274,30362,39575,51552,67123,87365,113680,147889,192360,250173,325330,423035,550050,715170,929826,1208879,1571647,2043247,2656358,3453445,4489711,5836927,7588399,9865430,12825724,16674305,21677721,28182498,36639146,47633359,61926577,80508723,104666764,136073846,176905169,229988640,299000730,388721096,505363618,657006755,854153052,1110456522,1443668303,1876866070,2440052358,3172232480,4124115974],
+				wine:0,
+				marble:[0,104,237,410,635,928,1309,1803,2446,3282,4368,5781,7617,10004,13108,17142,22387,29204,38068,49590,64569,84042,109357,142266,185047,240664,312965,406956,529145,687990,894489,1162938,1511952,1965711,2555649,3322636,4319807,5616243,7301758,9493121,12342143,16046197,20861892,27122845,35262801,45845674,59604620,77492822,100749532,130985914,170296669,221405146,287852011,374240536,486555497,632577793,822423477,1069244578,1390140238,1807341295,2349750384],
+				glass:0,
+				sulfur:0,
+				time:{a:72000,b:11,c:1.1,d:6120},
+				dur:(()=>{var t=[];var c={a:72000,b:11,c:1.1,d:6120};for(var i=0;i<61;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/forester_l.png'
+			},
+			glassblowing:
+			{
+				buildingId:20,
+				maxLevel: 61,
+				wood:[274,467,718,1045,1469,2021,2738,3671,4883,6459,8508,11172,14634,19135,24987,32594,42483,55339,72051,93778,122022,158740,206472,268525,349194,454063,590393,767621,998019,1297536,1686907,2193090,2851161,3706696,4818949,6264951,8144848,10588838,13766186,17896947,23267208,30248900,39325559,51125812,66466917,86411362,112340452,146049973,189874567,246849419,320920474,417217714,542410456,705169252,916766387,1191856573,1549491900,2014441336,2618906170,3404750192,4426399083],
+				wine:0,
+				marble:[0,116,255,436,671,977,1375,1892,2564,3437,4572,6049,7968,10462,13705,17921,23402,30527,39790,51831,67485,87835,114290,148681,193390,251512,327069,425295,552987,718988,934789,1215330,1580064,2054260,2670767,3472295,4514372,5869187,7630598,9920629,12897924,16768741,21801234,28344037,36850411,47909647,62287886,80981202,105284598,136881725,177961516,231369827,300806590,391082130,508450405,661042257,859428691,1117353190,1452683817,1888651047,2455457089],
+				glass:0,
+				sulfur:0,
+				time:{a:72000,b:11,c:1.1,d:6120},
+				dur:(()=>{var t=[];var c={a:72000,b:11,c:1.1,d:6120};for(var i=0;i<61;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/glassblowing_l.png'
+			},
+			marineChartArchive:
+			{
+				buildingId:32,
+				maxLevel: 40,
+				wood:[578,1298,2133,3102,4226,5530,7042,8796,10831,13191,15929,19106,22790,27064,32022,37773,44444,52183,61159,71572,83651,97663,113917,132771,154642,180012,209442,243580,283180,329116,382402,444214,515916,599090,695572,807491,937317,1087916,1262610,1465255],
+				wine:0,
+				marble:[346,1066,1916,2918,4101,5497,7144,9088,11381,14088,17281,21050,25496,30743,36935,44241,52862,63035,75039,89204,105918,125641,148914,176377,208782,247021,292142,345385,408212,482348,569829,673055,794863,938596,1108201,1308335,1544493,1823160,2151986,2540001],
+				glass:[161,611,1142,1769,2508,3380,4410,5625,7058,8750,10746,13101,15880,19159,23029,27595,32984,39342,46844,55697,66144,78470,93016,110180,130434,154333,182533,215810,255077,301412,356088,420604,496734,586567,692571,817654,965253,1139420,1344936,1587446],
+				sulfur:0,
+				durs:[[36,5965,346,23655,1252,58749],[71,5930,680,23321,2447,57554],[106,5895,1004,22997,3590,56411],[140,5861,1318,22683,4683,55318],[174,5827,1622,22379,5731,54270],[207,5794,1918,22083,6737,53264],[240,5761,2204,21797,7702,52299],[272,5729,2483,21518,8629,51372],[304,5697,2753,21248,9522,50479],[335,5666,3016,20985,10380,49621],[366,5635,3272,20729,11208,48793],[217,5604,3521,20480,12006,47995],[427,5574,3763,20238,12776,47225],[457,5544,3999,20002,13519,46482],[486,5515,4228,19773,14237,45764],[515,5486,4452,19549,14931,45070],[543,5458,4670,19331,15603,44398],[571,5430,4883,19118,16254,43747],[599,5402,5091,18910,16883,43118],[627,5374,5293,18708,17494,42507],[654,5347,5491,18510,18086,41915],[680,5321,5684,18317,18660,41341],[707,5294,5872,18129,19218,40783],[733,5268,6057,17944,19759,40242],[758,5243,6237,17764,20285,39716],[784,5217,6413,17588,20796,39205],[809,5192,6585,17416,21293,38708],[834,5167,6753,17248,21777,38224],[858,5143,6918,17083,22248,37753],[882,5119,7079,16922,22706,37295],[906,5095,7237,16764,23152,36849],[930,5071,7391,16610,23587,36414],[953,5048,7542,16459,24011,35990],[976,5025,7691,16310,24425,35576],[999,5002,7836,16165,24828,35173],[1021,4980,7978,16023,25222,34779],[1043,4958,8118,15883,25606,34395],[1065,4936,8254,15747,25981,34020],[1087,4914,8388,15613,26347,33654],[1108,4893,8520,15481,26705,33296]],
+				time:{a:1472465,b:509,c:1.12,d:504.5},
+				dur:(()=>{var t=[];var c={a:1472465,b:509,c:1.12,d:504.5};for(var i=0;i<40;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/marinechartarchive_l.png'
+			},
+			museum:
+			{
+				buildingId:10,
+				maxLevel: 36,
+				wood:[560,1435,2748,4716,7669,12099,18744,28710,43661,66086,99724,150181,225866,339394,509686,765124,1148281,1723017,2585121,3878276,5818009,8727906,13093198,19641805,29465722,44203104,66311437,99477330,149231256,223869780,335839016,503810048,755792366,1133804502,1700880700,2551581997],
+				wine:0,
+				marble:[280,1190,2573,4676,7871,12729,20112,31335,48394,74323,113736,173643,264701,403110,613492,933272,1419338,2158158,3281165,4988136,7582731,11526912,17522673,26637149,40492547,61554876,93572844,142245060,216234287,328709247,499688421,759602961,1154712888,1755340514,2668386534,4056356382],
+				glass:0,
+				sulfur:0,
+				lf:[0,20,41,63,88,114,144,176,211,250,294,341,395,453,518,590,670,759,857,965,1086,1219,1367,1530,1711,1912,2134,2380,2652,2953,3286,3655,4064,4516,5016,5569,6182],
+				time:{a:18000,b:1,c:1.1,d:14040},
+				dur:(()=>{var t=[];var c={a:18000,b:1,c:1.1,d:14040};for(var i=0;i<36;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/museum_r.png'
+			},
+			optician:
+			{
+				buildingId:25,
+				maxLevel: 50,
+				wood:[119,188,269,362,471,597,742,912,1108,1335,1600,1906,2261,2673,3152,3706,4350,5096,5962,6966,8131,9482,11050,12868,14978,17424,20263,23555,27374,31805,36944,42905,49827,57867,67204,78048,90641,105266,122251,141977,164886,191490,222388,258271,299943,348340,404545,469820,545626,633665],
+				wine:0,
+				marble:[0,35,96,167,249,345,455,584,733,905,1106,1338,1608,1921,2283,2704,3192,3759,4416,5178,6062,7087,8276,9656,11257,13113,15267,17765,20663,24025,27924,32448,37704,43813,50911,59160,68744,79882,92823,107862,125337,145643,169239,196657,228518,265541,308562,358552,416642,484142],
+				glass:0,
+				sulfur:0,
+				time:{a:125660,b:37,c:1.06,d:2772},
+				dur:(()=>{var t=[];var f=[{a:125660,b:37,c:1.06,d:2772},{a:168457,b:75,c:1.069256,d:0,e:{39:-1,44:-1,50:1}}];for(var i=0;i<50;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=Math.round(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/optician_l.png'
+			},
+			palace:
+			{
+				buildingId:11,
+				maxLevel: 20,
+				wood:[712,5824,16048,36496,77392,159184,322768,649936,1304272,2612944,4743518,8611345,15632968,28379968,51520771,93530403,169794358,308243344,559582545,1015861754],
+				wine:[0,0,0,10898,22110,44534,89382,179078,358470,717254,1434822,2870272,5741800,11486115,22977258,45964577,91949276,183938806,367958137,736077360],
+				marble:[0,1434,4546,10770,23218,48114,97906,197490,396658,794994,1591666,3186691,6380109,12773685,25574331,51202643,102513360,205243096,410919400,822706132],
+				glass:[0,0,0,0,21188,42400,84824,169672,339368,678760,1357544,2715136,5430368,10860928,21722240,43445248,86892032,173787137,347580419,695173129],
+				sulfur:[0,0,3089,10301,24725,53573,111269,226661,457445,919013,1842149,3692562,7401691,14836588,29739739,59612900,119493244,239522576,480119730,962393438],
+				time:{a:11520,b:1,c:1.4,d:0},
+				dur:(()=>{var t=[];var c={a:11520,b:1,c:1.4,d:0};for(var i=0;i<20;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/palace_l.png'
+			},
+			palaceColony:
+			{
+				buildingId:17,
+				maxLevel: 20,
+				wood:[712,5824,16048,36496,77392,159184,322768,649936,1304272,2612944,4743518,8611345,15632968,28379968,51520771,93530403,169794358,308243344,559582545,1015861754],
+				wine:[0,0,0,10898,22110,44534,89382,179078,358470,717254,1434822,2870272,5741800,11486115,22977258,45964577,91949276,183938806,367958137,736077360],
+				marble:[0,1434,4546,10770,23218,48114,97906,197490,396658,794994,1591666,3186691,6380109,12773685,25574331,51202643,102513360,205243096,410919400,822706132],
+				glass:[0,0,0,0,21188,42400,84824,169672,339368,678760,1357544,2715136,5430368,10860928,21722240,43445248,86892032,173787137,347580419,695173129],
+				sulfur:[0,0,3089,10301,24725,53573,111269,226661,457445,919013,1842149,3692562,7401691,14836588,29739739,59612900,119493244,239522576,480119730,962393438],
+				time:{a:11520,b:1,c:1.4,d:0},
+				dur:(()=>{var t=[];var c={a:11520,b:1,c:1.4,d:0};for(var i=0;i<20;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/palaceColony_l.png'
+			},
+			pirateFortress:
+			{
+				buildingId:30,
+				maxLevel: 30,
+				wood:[450,906,1389,1935,2593,3427,4516,5950,7834,10284,13430,17415,22394,28534,36015,45029,55779,68482,83366,100671,120648,143562,169686,199309,232729,270255,312210,358926,410748,468032],
+				wine:0,
+				marble:[250,505,783,1112,1534,2103,2883,3949,5388,7296,9782,12964,16970,21938,28019,35370,44162,54573,66793,81020,97463,116341,137883,162325,189915,220912,255580,294197,337048,384429],
+				glass:0,
+				sulfur:0,
+				time:[40,414,817,1253,1721,2228,2779,3370,4010,4702,8989,10487,12150,13997,16045,30528,35449,41058,47455,54745,76684,88880,102906,119034,137585,200203,232974,270994,315090,366246],
+				dur:[40,414,817,1253,1721,2228,2779,3370,4010,4702,8989,10487,12150,13997,16045,30528,35449,41058,47455,54745,76684,88880,102906,119034,137585,200203,232974,270994,315090,366246],
+				icon:'/cdn/all/both/img/city/pirateFortress_l.png'
+			},
+			port:
+			{
+				buildingId:3,
+				maxLevel: 74,
+				wood:[60,150,274,429,637,894,1207,1645,2106,2735,3537,4492,5689,7103,8850,11094,13731,17062,21097,25965,31810,39190,47998,58713,71955,87627,107102,130777,159020,193938,235849,286515,348718,423990,513947,625161,758178,919694,1116013,1353517,1642275,1990224,2411062,2923229,3541580,4291524,5199343,6299199,7631718,9246113,11202015,13571663,16442581,19920807,24134808,29240229,35425639,42919496,51998587,62998247,76324750,92470310,112031264,135730097,164442126,199227831,241372023,292431299,354291535,429237542,520037453,630044966,763323212,924794828],
+				wine:0,
+				marble:[0,0,0,0,0,176,326,540,791,1138,1598,2176,2928,3859,5051,6628,8566,11089,14265,18241,23197,29642,37636,47703,60556,76367,96639,122157,153754,194090,244301,307174,386956,486969,610992,769303,965794,1212791,1523572,1913073,2403314,3015689,3782993,4749576,5959027,7478201,9383420,11774031,14773697,18537587,23260403,29186449,36622272,45952517,57659826,72349802,90782339,113910929,142931982,179346719,225038829,282371903,354311707,444579593,557845001,699967003,878297384,1102060943,1382832675,1735136536,2177196745,2731880500,3427880866,4301201034],
+				glass:0,
+				sulfur:0,
+				loadingSpeed:[30,60,93,129,169,213,261,315,373,437,508,586,672,766,869,983,1108,1246,1398,1565,1748,1950,2172,2416,2685,2980,3305,3663,4056,4489,4965,5488,6064,6698,7394,8161,9004,9931,10951,12073,13308,14666,16159,17802,19609,21597,23784,26160,28800,31740,34980,38520,42420,46680,51420,56640,62400,68700,75660,83340,91740,101040,111300,122580,134940,148620,163680,180300,198540,218640,240780,265140,292020,321600],
+				time:{a:50400,b:23,c:1.15,d:1512,e:[588]},
+				dur:(()=>{var t=[];var c={a:50400,b:23,c:1.15,d:1512,e:[588]};for(var i=0;i<74;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/port_r.png'
+			},
+			safehouse:
+			{
+				buildingId:16,
+				maxLevel: 60,
+				wood:[113,248,402,578,779,1007,1267,1564,1903,2288,2728,3230,3801,4453,5195,6042,7008,8108,9363,10793,12423,14282,16401,18816,21570,24709,28288,32368,37019,42321,48365,55255,63126,72119,82393,94131,107540,122860,140363,160359,183204,209303,239119,273184,312102,356563,407359,465390,531689,607433,693967,792828,905773,1034808,1182226,1350644,1543054,1762875,2014012,2300925],
+				wine:0,
+				marble:[0,0,0,129,197,275,366,471,593,735,900,1090,1312,1569,1866,2212,2613,3078,3617,4243,4968,5810,6787,7919,9233,10758,12526,14577,16956,19716,22917,26631,30946,35962,41790,48563,56433,65579,76207,88557,102909,119587,138967,161489,187660,218073,253415,294484,342209,397669,462117,537009,624038,725172,842695,979265,1137968,1322391,1536701,1785744],
+				glass:0,
+				sulfur:0,
+				spytime:{a:900.12,b:-0.0513}, // Seconds to create one spy per level (s): y = Math.round(a*exp(b*x))
+				time:{a:96000,b:7,c:1.05,d:12960},
+				dur:(()=>{var t=[];var f=[{a:96000,b:7,c:1.05,d:12960},{a:95959,b:13,c:1.06315467,d:0}];for(var i=0;i<60;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=Math.round(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/safehouse_l.png'
+			},
+			shipyard:
+			{
+				buildingId:5,
+				maxLevel:38,
+				wood:[105,202,324,477,671,914,1222,1609,2096,2711,3485,4460,5689,7238,9190,11648,14746,18650,23568,29765,37573,47412,59808,75428,95108,119906,151151,190520,240124,302626,381378,480605,605632,763166,961659,1211759,1526886,1923946],
+				wine:0,
+				marble:[0,0,0,0,0,778,1052,1397,1832,2381,3071,3942,5038,6420,8161,10354,13118,16601,20989,26517,33484,42261,53321,67256,84814,106938,134814,169937,214192,269954,340214,428741,540286,680832,857920,1081051,1362196,1716438],
+				glass:0,
+				sulfur:0,
+				time:{a:64800,b:7,c:1.05,d:7128},
+				dur:(()=>{var t=[];var c={a:64800,b:7,c:1.05,d:7128};for(var i=0;i<38;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/shipyard_l.png'
+			},
+			stonemason:
+			{
+				buildingId:19,
+				maxLevel: 61,
+				wood:[274,467,718,1045,1469,2021,2738,3671,4883,6459,8508,11172,14634,19135,24987,32594,42483,55339,72051,93778,122022,158740,206472,268525,349194,454063,590393,767621,998019,1297536,1686907,2193090,2851161,3706696,4818949,6264951,8144848,10588838,13766186,17896947,23267208,30248900,39325559,51125812,66466917,86411362,112340452,146049973,189874567,246849419,320920474,417217714,542410456,705169252,916766387,1191856573,1549491900,2014441336,2618906170,3404750192,4426399083],
+				wine:0,
+				marble:[0,116,255,436,671,977,1375,1892,2564,3437,4572,6049,7968,10462,13705,17921,23402,30527,39790,51831,67485,87835,114290,148681,193390,251512,327069,425295,552987,718988,934789,1215330,1580064,2054260,2670767,3472295,4514372,5869187,7630598,9920629,12897924,16768741,21801234,28344037,36850411,47909647,62287886,80981202,105284598,136881725,177961516,231369827,300806590,391082130,508450405,661042257,859428691,1117353190,1452683817,1888651047,2455457089],
+				glass:0,
+				sulfur:0,
+				time:{a:72000,b:11,c:1.1,d:6120},
+				dur:(()=>{var t=[];var c={a:72000,b:11,c:1.1,d:6120};for(var i=0;i<61;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/stonemason_l.png'
+			},
+			temple:
+			{
+				buildingId:28,
+				maxLevel: 56,
+				wood:[216,228,333,465,598,760,958,1197,1432,1773,2112,2512,3082,3655,4458,5126,6232,7167,8688,10247,11784,14229,16753,19266,23186,26664,32027,36831,43257,50782,59591,68529,80385,96068,108393,129447,148864,174363,204229,239212,280187,328180,384394,450238,527359,617691,723496,847424,992579,1162599,1361741,1594995,1868202,2188208,2563028,3002050],
+				wine:0,
+				marble:0,
+				glass:[173,190,290,423,567,752,989,1290,1610,2080,2586,3210,4109,5084,6471,7765,9851,11821,14952,18402,22082,27824,34184,41020,51514,61817,77477,92972,113941,139577,170911,205093,251034,313054,368577,459304,551164,673645,823344,1006309,1229934,1503253,1837309,2245600,2744623,3354540,4099994,5011105,6124685,7485728,9149224,11182387,13667365,16704560,20416688,24953734],
+				sulfur:0,
+				priests:[12,23,37,54,73,94,117,142,168,196,225,255,287,320,355,390,427,464,503,543,583,625,668,711,756,801,848,895,943,992,1042,1092,1143,1196,1248,1302,1356,1411,1468,1527,1589,1654,1721,1791,1863,1939,2018,2099,2185,2273,2365,2461,2561,2665,2773,2886],
+				time:{a:2160,b:1,c:1.1,d:0,e:{33:1,36:1}},
+				dur:(()=>{var t=[];var c={a:2160,b:1,c:1.1,d:0,e:{33:1,36:1}};for(var i=0;i<56;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/temple_l.png'
+			},
+			tavern:
+			{
+				buildingId:9,
+				maxLevel: 70,
+				wood:[101,222,367,541,750,1001,1302,1663,2097,2617,3241,3990,4888,5967,7261,8814,10678,12914,15598,18818,22683,27320,32885,39562,47576,57192,68731,82578,99194,119134,143061,171774,206230,247577,297193,356732,428179,513916,616800,740261,888414,1066197,1279538,1535546,1842756,2211408,2653790,3184668,3821746,4586269,5503731,6604728,7925973,9511528,11414265,13697636,16437785,19726089,23672202,28407718,34090551,40910209,49094109,58915159,70700866,84844249,101816951,122184964,146627504,175959663],
+				wine:0,
+				marble:[0,0,0,94,122,158,206,267,348,452,587,764,993,1290,1677,2181,2835,3685,4791,6228,8097,10526,13684,17789,23125,30063,39082,50806,66048,85862,111621,145107,188640,245232,318801,414441,538774,700406,910528,1183686,1538792,2000429,2600558,3380726,4394943,5713427,7427454,9655688,12552393,16318109,21213538,27577596,35850869,46606124,60587952,78764326,102393609,133111672,173045148,224958659,292446213,380180021,494233954,642504045,835255135,1085831515,1411580761,1835054717,2385570779,3101241554],
+				glass:0,
+				sulfur:0,
+				wineUse:[0,4,8,13,18,24,30,37,44,51,60,68,78,88,99,110,122,136,150,165,180,197,216,235,255,277,300,325,351,378,408,439,472,507,544,584,626,670,717,766,818,874,933,995,1060,1129,1203,1280,1361,1449,1541,1640,1745,1857,1976,2102,2237,2380,2532,2694,2867,3050,3246,3453,3675,3910,4160,4426,4710,5011,5332],
+				wineUse2:[0,12,24,36,48,61,73,86,99,112,125,138,152,165,179,193,207,222,236,251,266,282,297,313,329,345,361,378,395,412,430,448,466,484,502,521,540,560,580,600,620,641,662,683,705,727,749,772,795,819,843,867,891,916,942,968,994,1021,1048,1075,1103,1131,1160,1189,1219,1249,1280,1311,1343,1375,1408],
+				wineUse3:[0,60,120,181,242,304,367,430,494,559,624,691,758,826,896,966,1037,1109,1182,1256,1332,1408,1485,1564,1644,1725,1807,1891,1975,2061,2149,2238,2328,2419,2512,2606,2702,2800,2898,2999,3101,3204,3310,3416,3525,3635,3747,3861,3976,4094,4213,4334,4457,4582,4709,4838,4969,5103,5238,5375,5515,5657,5801,5947,6096,6247,6400,6556,6714,6875,7038],
+				time:{a:10800,b:1,c:1.06,d:10440},
+				dur:(()=>{var t=[];var c={a:10800,b:1,c:1.06,d:10440};for(var i=0;i<70;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/taverne_r.png'
+			},
+			townHall:
+			{
+				buildingId:0,
+				maxLevel: 66,
+				wood:[0,158,335,623,923,1390,2015,2706,3661,4776,6173,8074,10281,13023,16424,20986,25423,32285,40232,49286,61207,74804,93956,113035,141594,170213,210011,258875,314902,387657,471194,572581,695617,854729,1037816,1274043,1529212,1876201,2276286,2761291,3349635,4063337,4929106,5979344,7253354,8798816,10673568,12947770,15706532,19053101,23112718,28037312,34011182,41257896,50048657,60712452,73648368,89340520,108376177,131467734,159479376,193459418,234679540,284682374,345339239,418920177],
+				wine:0,
+				marble:[0,0,0,0,285,551,936,1411,2091,2945,4072,5664,7637,10214,13575,18254,23250,31022,40599,52216,68069,87316,115101,145326,191053,241039,312128,403825,515593,666229,850031,1084293,1382827,1783721,2273687,2930330,3692591,4756439,6058643,7716366,9827663,12516639,15941353,20303113,25858307,32933474,41944498,53421055,68037746,86653753,110363339,140560175,179019255,228001236,290385320,369838495,471031085,599911276,764054752,973110003,1239365472,1578471878,2010362177,2560423242,3260988121,4153236601],
+				glass:0,
+				sulfur:0,
+				maxPop:[60,96,142,200,262,332,410,492,580,672,768,870,976,1086,1200,1320,1440,1566,1696,1828,1964,2102,2246,2390,2540,2690,2844,3002,3162,3326,3492,3660,3830,4004,4180,4360,4540,4724,4910,5098,5293,5495,5706,5924,6151,6387,6631,6885,7149,7423,7707,8002,8308,8626,8957,9300,9656,10026,10409,10808,11222,11652,12098,12561,13042,13541],
+				actionPointsMax:(()=>{var aP=[0];for(var i=1;i<=66;i++){aP.push(Math.floor(i/4+3));}return aP;})(),
+				time:{a:1800,b:1,c:1.17,d:-1080,e:[3186]},
+				dur:(()=>{var t=[];var c={a:1800,b:1,c:1.17,d:-1080,e:[3186]};for(var i=0;i<66;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/townhall_l.png'
+			},
+			vineyard:
+			{
+				buildingId:26,
+				maxLevel:50,
+				wood:[339,423,520,631,758,905,1074,1269,1492,1749,2045,2384,2775,3225,3741,4336,5019,5805,6709,7749,8944,10319,11900,13718,15809,18214,20979,24159,27816,32021,36858,42419,48819,56184,64661,74417,85645,98567,113438,130553,150251,172920,199010,229036,263592,303362,349132,401808,462431,532201],
+				wine:0,
+				marble:[123,198,285,387,504,640,798,981,1194,1440,1726,2058,2443,2889,3407,4008,4705,5513,6450,7538,8800,10263,11961,13930,16214,18864,21938,25503,29639,34437,40002,46458,53955,62664,72777,84523,98164,114007,132407,153776,178595,207419,240894,279773,324926,377366,438270,509004,591153,686560],
+				glass:0,
+				sulfur:0,
+				time:{a:125660,b:37,c:1.06,d:2232},
+				dur:(()=>{var t=[];var f=[{a:125660,b:37,c:1.06,d:2232},{a:107967,b:44,c:1.067231,d:1,e:{42:1,45:1,47:1,48:1,49:1}}];for(var i=0;i<50;i++){var h=i<32?0:1;var g=(f[h].a/f[h].b*Math.pow(f[h].c,i+1)-f[h].d)-(f[h].e!=undefined&&f[h].e[i+1]!=undefined?f[h].e[i+1]:0);g=Math.ceil(g);t.push((g>1728e3?1728e3:g));}return t;})(),
+				icon:'/cdn/all/both/img/city/vineyard_l.png'
+			},
+			wall:
+			{
+				buildingId:8,
+				maxLevel: 48,
+				wood:[114,361,657,1012,1439,1951,2565,3302,4186,5247,6521,8049,9882,12083,14724,17892,21695,26258,31733,38304,46189,55650,67004,80629,96979,116599,140143,168395,202298,242982,291802,350387,420688,505050,606284,727765,873542,1048474,1258393,1510295,1812578,2175318,2610605,3132950,3759764,4511941,5414554,6497688],
+				glass:0,
+				marble:[0,203,516,892,1344,1885,2535,3315,4251,5374,6721,8338,10279,12608,15402,18755,22779,27607,33402,40355,48699,58711,70726,85144,102446,123208,148122,178019,213896,256948,308610,370605,444998,534271,641398,769950,924213,1109329,1331467,1598033,1917913,2301768,2762394,3315146,3978448,4774411,5729566,6875751],
+				sulfur:0,
+				wine:0,
+				time:{a:57600,b:11,c:1.1,d:3240,e:[2430]},
+				dur:(()=>{var t=[];var c={a:57600,b:11,c:1.1,d:3240,e:[2430]};for(var i=0;i<48;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/wall.png'
+			},
+			warehouse:
+			{
+				buildingId:7,
+				maxLevel: 85,
+				wood:[160,288,442,626,847,1113,1431,1813,2272,2822,3483,4275,5226,6368,7737,9380,11353,13719,16559,19967,24056,28963,34852,41918,50398,60574,72784,87437,105021,126121,151441,181825,218286,262039,314543,377548,453153,543880,652752,783398,940192,1128368,1354207,1625247,1950534,2340927,2809455,3371758,4046603,4856517,5828531,6995091,8395134,10075391,12091945,14512105,17416651,20902532,25086100,30106994,36132802,43364655,52043937,62460347,74961564,89964855,107971003,129581016,155516198,186642214,223997992,268830396,322635847,387210269,464709033,557718899,669344361,803311263,964091166,1157050597,1388630175,1666559584,2000115580,2400431627,2880869512],
+				wine:0,
+				marble:[0,0,0,96,211,349,515,714,953,1240,1584,1997,2492,3086,3800,4656,5683,6915,8394,10169,12299,14855,17922,21602,26019,31319,37678,45310,54468,65458,78645,94471,113461,136249,163595,196409,235787,283041,339745,407790,489463,587494,705159,846390,1015907,1219375,1463595,1756728,2108570,2530879,3037771,3646183,4376450,5252977,6305057,7567850,9083558,10902837,13086485,15707480,18853414,22629425,27161704,32601720,39131276,46968588,56375578,67666623,81219068,97485831,117010544,140445715,168574544,202337086,242861676,291502636,349885531,419961503,504072470,605029398,726206237,871652685,1046229521,1255771053,1507280100],
+				glass:0,
+				sulfur:0,
+				cp:[8000,16401,25455,35331,46181,58159,71421,86138,102493,120687,140942,163502,188637,216646,247860,282647,321416,364622,412768,466416,526189,592779,666959,749584,841609,944094,1058219,1185297,1326787,1484315,1659690,1854922,2072252,2314171,2583453,2883186,3216807,3588142,4001450,4461476,4973499,5543400,6177729,6883779,7669673,8544460,9518219,10602179,11808851,13152172,14647676,16312668,18166439,20230485,22528769,25088000,27937955,31111829,34646637,38583648,42968887,47853679,53295269,59357506,66111616,73637056,82022473,91366775,101780329,113386298,126322135,140741251,156814887,174734197,194712581,216988297,241827374,269526873,300418536,334872863,373303675,416173213,463997848,517354466,576887609],
+				time:{a:2880,b:1,c:1.14,d:2160,e:[1063,1163]},
+				dur:(()=>{var t=[];var c={a:2880,b:1,c:1.14,d:2160,e:[1063,1163]};for(var i=0;i<85;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/warehouse_l.png'
+			},
+			winegrower:
+			{
+				buildingId:21,
+				maxLevel: 61,
+				wood:[274,467,718,1045,1469,2021,2738,3671,4883,6459,8508,11172,14634,19135,24987,32594,42483,55339,72051,93778,122022,158740,206472,268525,349194,454063,590393,767621,998019,1297536,1686907,2193090,2851161,3706696,4818949,6264951,8144848,10588838,13766186,17896947,23267208,30248900,39325559,51125812,66466917,86411362,112340452,146049973,189874567,246849419,320920474,417217714,542410456,705169252,916766387,1191856573,1549491900,2014441336,2618906170,3404750192,4426399083],
+				wine:0,
+				marble:[0,116,255,436,671,977,1375,1892,2564,3437,4572,6049,7968,10462,13705,17921,23402,30527,39790,51831,67485,87835,114290,148681,193390,251512,327069,425295,552987,718988,934789,1215330,1580064,2054260,2670767,3472295,4514372,5869187,7630598,9920629,12897924,16768741,21801234,28344037,36850411,47909647,62287886,80981202,105284598,136881725,177961516,231369827,300806590,391082130,508450405,661042257,859428691,1117353190,1452683817,1888651047,2455457089],
+				glass:0,
+				sulfur:0,
+				time:{a:72000,b:11,c:1.1,d:6120},
+				dur:(()=>{var t=[];var c={a:72000,b:11,c:1.1,d:6120};for(var i=0;i<61;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/winegrower_l.png'
+			},
+			workshop:
+			{
+				buildingId:15,
+				maxLevel:32,
+				wood:[220,383,569,781,1023,1299,1613,1972,2380,2846,3377,3982,4672,5458,6355,7377,8542,9870,11385,13111,15079,17322,19880,22796,26119,29909,34228,39153,44766,51166,58462,66779],
+				wine:0,
+				marble:[95,167,251,349,461,592,744,920,1125,1362,1637,1956,2326,2755,3253,3831,4501,5278,6180,7226,8439,9847,11479,13373,15570,18118,21074,24503,28481,33095,38447,44656],
+				glass:0,
+				sulfur:0,
+				time:{a:96000,b:7,c:1.05,d:11880},
+				dur:(()=>{var t=[];var c={a:96000,b:7,c:1.05,d:11880};for(var i=0;i<32;i++){var d=Math.round(c.a/c.b*Math.pow(c.c,i+1)-c.d)-(c.e!=undefined?(c.e[i]!=undefined?c.e[i]:0):0);t.push((d>1728e3?1728e3:d));}return t;})(),
+				icon:'/cdn/all/both/img/city/workshop_l.png'
+			}
+		}
   };
 
   Constant.buildingOrder = {
     growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
     research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
     diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
+    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
     wood: [Constant.Buildings.FORESTER, Constant.Buildings.CARPENTER],
     wine: [Constant.Buildings.WINERY, Constant.Buildings.VINEYARD],
@@ -10080,7 +10195,7 @@
     growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
     research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
     diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
+    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
     production: [Constant.Buildings.FORESTER, Constant.Buildings.WINERY, Constant.Buildings.STONEMASON, Constant.Buildings.GLASSBLOWER, Constant.Buildings.ALCHEMISTS_TOWER],
     reducton: [Constant.Buildings.CARPENTER, Constant.Buildings.VINEYARD, Constant.Buildings.ARCHITECT, Constant.Buildings.OPTICIAN, Constant.Buildings.FIREWORK_TEST_AREA],
@@ -10090,7 +10205,7 @@
     growth: [Constant.Buildings.TOWN_HALL, 'colonyBuilding', Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
     research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
     diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
+    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
     production: [Constant.Buildings.FORESTER, 'productionBuilding', Constant.Buildings.WINERY, Constant.Buildings.STONEMASON, Constant.Buildings.GLASSBLOWER, Constant.Buildings.ALCHEMISTS_TOWER],
     reducton: [Constant.Buildings.CARPENTER, Constant.Buildings.VINEYARD, Constant.Buildings.ARCHITECT, Constant.Buildings.OPTICIAN, Constant.Buildings.FIREWORK_TEST_AREA],
@@ -10192,8 +10307,8 @@
   });
 
   /**************************************************************************
-   * for IkaLogs
-   ***************************************************************************/
+  * for IkaLogs
+  ***************************************************************************/
 
   function addScript(src) {
     var scr = document.createElement('script');

@@ -3,7 +3,7 @@ Script that provides Overview tables for resources, buildings, and military for 
 
 **Please Note: I don't own this project, just try the best to keep this project alive for continuing game players.**
 
-Starting code base: https://greasyfork.org/en/scripts/764-empire-overview
+Based on modifications by @mrFiX: https://greasyfork.org/en/scripts/456297-empire-overview
 
 ### **!!! Install at your own risk !!!**
 
