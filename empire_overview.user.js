@@ -1418,23 +1418,34 @@
       r.government = Constant.GovernmentData[database.getGlobalData.getGovernmentType].happiness
       if (this.getBuildingFromName(Constant.Buildings.TAVERN)) {
         var wineUse;
-        wineUse = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse;
-        if (ikariam.Server() == 's202') {
+        // if (ikariam.Server() == 's202' || ikariam.Server() == 's302') {
+        //   wineUse = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse2;
+        // } else {
+          // wineUse = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse;
           wineUse = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse2;
-        }
-        var tavernLevelHappiness = [12,24,36,48,61,73,86,99,112,125,138,152,165,179,193,207,222,236,251,266,282,297,313,329,345,361,378,395,412,430,448,466,484,502,521,540,560,580,600,620,641,662,683,705,727,749,772,795,819,843,867,891,916,942,968,994,1021,1048,1075,1103,1131,1160,1189,1219,1249,1280,1311,1343,1375,1408];
-        r.tavern.level = tavernLevelHappiness[this.getBuildingFromName(Constant.Buildings.TAVERN).getLevel - 1];
+        // }
 
-        var tavernLevelConsumption = [60,120,181,242,304,367,430,494,559,624,691,758,826,896,966,1037,1109,1182,1256,1332,1408,1485,1564,1644,1725,1807,1891,1975,2061,2149,2238,2328,2419,2512,2606,2702,2800,2898,2999,3101,3204,3310,3416,3525,3635,3747,3861,3976,4094,4213,4334,4457,4582,4709,4838,4969,5103,5238,5375,5515,5657,5801,5947,6096,6247,6400,6556,6714,6875,7038];
-        // r.tavern.wineConsumption = 
-        var consumption = Math.floor(this.getResource(Constant.Resources.WINE).getConsumption * (100 / (100 - (this.getBuildingFromName(Constant.Buildings.VINEYARD) ? this.getBuildingFromName(Constant.Buildings.VINEYARD).getLevel : 0))));
-        for (var i = 0; i < wineUse.length; i++) {
-          if (Math.abs(wineUse[i] - consumption) <= 1) {
+        var tavernLevelSatisfaction = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse2;
+        var tavernWineSatisfaction = Constant.BuildingData[Constant.Buildings.TAVERN].wineUse3;
+
+        var tavernLevel = this.getBuildingFromName(Constant.Buildings.TAVERN).getLevel
+        r.tavern.level = tavernLevelSatisfaction[tavernLevel];
+
+        // TODO: Fix this as it currently assumes tavern is serving maximum drinks based on level. 
+        r.tavern.wineConsumption = tavernWineSatisfaction[tavernLevel]
+
+        // I can't figure out how this code below has anything to do with satisfaction. If it used to guess the current slider level, it is certainly wrong.
+        // var tavernLevelConsumption = [60,120,181,242,304,367,430,494,559,624,691,758,826,896,966,1037,1109,1182,1256,1332,1408,1485,1564,1644,1725,1807,1891,1975,2061,2149,2238,2328,2419,2512,2606,2702,2800,2898,2999,3101,3204,3310,3416,3525,3635,3747,3861,3976,4094,4213,4334,4457,4582,4709,4838,4969,5103,5238,5375,5515,5657,5801,5947,6096,6247,6400,6556,6714,6875,7038];
+        // var consumption = Math.floor(this.getResource(Constant.Resources.WINE).getConsumption * (100 / (100 - (this.getBuildingFromName(Constant.Buildings.VINEYARD) ? this.getBuildingFromName(Constant.Buildings.VINEYARD).getLevel : 0))));
+        // for (var i = 0; i < wineUse.length; i++) {
+          // if (Math.abs(wineUse[i] - consumption) <= 1) {
+            // GM_log("consumption: " + consumption + ", wineUse: " + wineUse[i])
             // r.tavern.wineConsumption = 60 * i;
-            r.tavern.wineConsumption = tavernLevelConsumption[i - 1]
-            break;
-          }
-        }
+            // r.tavern.wineConsumption = wineUse[i]
+            // r.tavern.wineConsumption = tavernLevelConsumption[i - 1]
+            // break;
+          // }
+        // }
       }
       r.research = (database.getGlobalData.getResearchTopicLevel(2080) * 25) + (database.getGlobalData.getResearchTopicLevel(2999) * 10) + (this.getBuildingFromName(Constant.Buildings.PALACE) ? 50 * database.getGlobalData.getResearchTopicLevel(3010) : 0) + (this.getBuildingFromName(Constant.Buildings.PALACE) ? 200 * database.getGlobalData.getResearchTopicLevel(2120) : 0) + (database.getCityCount == 1 ? 50 * database.getGlobalData.getResearchTopicLevel(3010) : 0) - (this.getBuildingFromName(Constant.Buildings.PALACE) && database.getCityCount == 1 ? 50 * database.getGlobalData.getResearchTopicLevel(3010) : 0);
       r.priest = this._priests * 500 / this._getMaxPopulation * Constant.GovernmentData[database.getGlobalData.getGovernmentType].happinessBonusWithTempleConversion;
