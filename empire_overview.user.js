@@ -5083,6 +5083,7 @@
 
     LanguageData: {
       en: {
+		    shrineOfOlympus: 'Gods\’ Shrine',
 		    dockyard: 'Dockyard',
         buildings: 'Buildings',
         economy: 'Economy',
@@ -5572,6 +5573,7 @@
       DUMP: 'dump',
       TRADING_PORT: 'port',
       TRADING_POST: 'branchOffice',
+      SHRINEOFOLYMPUS: 'shrineOfOlympus',
 	    DOCKYARD: 'dockyard',
       WALL: 'wall',
       HIDEOUT: 'safehouse',
@@ -5835,6 +5837,20 @@
     },
 		BuildingData:
 		{
+			shrineOfOlympus:
+			{
+        // TODO: Update ressource values and levels. Currently just placeholders to get it going. ID is correct.
+			  buildingId:34,
+			  maxLevel:50,
+			  wood:[504483,605763,727300,873144,1048157,1258172,1510191,1812613,2175519,2611007,3133593,3760773,4513481,5416842,6501009,7802168,9363751,11237881,13487113,16186522,19426211,23314315,27980612,33580856,40301974,48368305,58049091,69667459,83611213,100345772,120429707,144533388,173461356,208179178,249845678,299851616,359866107,431892337,518334422,622077657,746584820,896011756,1075346089,1290573705,1548878546,1858882405,2230932698,2677447853,3213331811,3856471495],
+			  wine:0,
+			  marble:[291703,344555,406921,480512,567350,669818,790731,933409,1101768,1300432,1534855,1811536,2138093,2523518,2978421,3515328,4149020,4896945,5779696,6821575,8051270,9502636,11215633,13237425,15623676,18440085,21764196,25687530,30318105,35783412,42233927,49847246,58832983,69438540,81955911,96729733,114166765,134747092,159037342,187706285,221543249,261479849,308615640,364248387,429909798,507407694,598875786,706832418,834249904,984636364],
+			  glass:[246865,289158,338642,396537,464275,543528,636254,744743,871676,1020188,1193946,1397298,1635285,1913806,2239765,2621241,3067690,3590178,4201655,4917280,5754789,6734942,7882035,9224500,10795613,12634317,14786189,17304567,20251874,23701164,27737937,32462251,37991209,44461856,52034581,60897089,71269056,83407573,97613516,114239010,133696151,156467225,183116658,214305012,250805354,293522418,343515036,402022375,470494660,550629117],
+			  sulfur:0,
+			  time:[{a:125660,b:37,c:1.06,d:2808},{a:125031,b:56,c:1.069394,d:0}],
+			  dur:[271230,316800,370800,435600,507600,594000,698400,817200,957600,1119600,1310400,1533600,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000,1728000],
+			  icon:'/cdn/all/both/img/city/shrineOfOlympus_l.png'
+			},
 			dockyard:
 			{
 			  buildingId:33,
@@ -6259,7 +6275,7 @@
 
   Constant.buildingOrder = {
     growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
+    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS],
     diplomacy: [Constant.Buildings.EMBASSY],
     trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
@@ -6272,7 +6288,7 @@
   };
   Constant.altBuildingOrder = {
     growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
+    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS],
     diplomacy: [Constant.Buildings.EMBASSY],
     trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
@@ -6282,7 +6298,7 @@
   };
   Constant.compBuildingOrder = {
     growth: [Constant.Buildings.TOWN_HALL, 'colonyBuilding', Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE],
+    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS],
     diplomacy: [Constant.Buildings.EMBASSY],
     trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
     military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
