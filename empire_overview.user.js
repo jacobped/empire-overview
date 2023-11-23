@@ -2,7 +2,7 @@
 // @name                 Empire Overview
 // @name:en              Empire Overview
 // @name:el              Empire Overview
-// @author               germano / 1.17 to 1.18 by Ariston /up 1.18 germano by mrFiX+(Thanx my friend) /up 1.9xx
+// @author               germano / 1.17 to 1.18 by Ariston /up 1.18 germano by mrFiX+(Thanx my friend) /up 1.9xx, 1.20xx /up by jacobped
 // @description          Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
 // @description:en       Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
 // @description:el       Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
@@ -25,7 +25,7 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 //
-// @version              1.1909
+// @version              1.2001
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
