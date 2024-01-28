@@ -25,7 +25,7 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 //
-// @version              1.2002
+// @version              1.2003
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -5841,7 +5841,7 @@
 			{
 				// TODO: Update ressource values and levels. Filled up to level 5.
 			  buildingId:34,
-			  maxLevel:50,
+			  maxLevel:41,
 			  wood:[614,770,965,1210,1518],
 			  wine:[0,0,116,145,182],
 			  marble:[0,0,0,0,217],
