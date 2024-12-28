@@ -5,6 +5,9 @@ Script that provides Overview tables for resources, buildings, and military for 
 
 Based on modifications by @mrFiX: https://greasyfork.org/en/scripts/456297-empire-overview
 
+Recommended to be used with [ViolentMonkey](https://violentmonkey.github.io/).   
+Alternatives may work, but TamperMonkey as an example has issues with logging. 
+
 ### **!!! Install at your own risk !!!**
 
 ---
