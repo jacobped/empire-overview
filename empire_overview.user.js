@@ -25,7 +25,7 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 //
-// @version              1.2003
+// @version              1.2004
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -2394,6 +2394,7 @@
           }
           return '';
         }
+        // Tooltip presented when hovering over a building in buildings view
         function getBuildingTooltip(building) {
           var uConst = building.isUpgrading;
           var resourceCost = building.getUpgradeCost;
@@ -2401,10 +2402,13 @@
           if (ikariam.Server() == 's201' || ikariam.Server() == 's202') serverTyp = 3;
           var elem = '';
           var time = 0;
+          var elemSum = 0;
+          var elemSumNeed = 0;
           var needlevel = 0;
           var costlevel = 0;
           needlevel = building.getLevel + 2;
           costlevel = building.getLevel + 1;
+
           for (var key in resourceCost) {
             if (key == 'time') {
               time = '<tr class="total"><td><img src="/cdn/all/both/resources/icon_time.png" style="height: 11px; float: left;"></td><td colspan="2" ><i>(' + Utils.FormatTimeLengthToStr(resourceCost[key] / serverTyp, 3, ' ') + ')</i></td></tr>';
@@ -2412,10 +2416,21 @@
             }
             if (resourceCost[key]) {
               elem += '<tr class="data"><td><div class="icon ' + key + 'Image"></div></td><td>' + Utils.FormatNumToStr(resourceCost[key], false, 0) + '</td>';
-              elem += (building.city().getResource(key).getCurrent < resourceCost[key] ? '<td class="red left">(' + Utils.FormatNumToStr(building.city().getResource(key).getCurrent - resourceCost[key], true, 0) + ')</td></tr>' : '<td><img src="/cdn/all/both/interface/check_mark_17px.png" style="height:11px; float:left;"></td></tr>');
+              elemSum += resourceCost[key];
+              // elem += (building.city().getResource(key).getCurrent < resourceCost[key] ? '<td class="red left">(' + Utils.FormatNumToStr(building.city().getResource(key).getCurrent - resourceCost[key], true, 0) + ')</td></tr>' : '<td><img src="/cdn/all/both/interface/check_mark_17px.png" style="height:11px; float:left;"></td></tr>');
+              var elemDiff = building.city().getResource(key).getCurrent - resourceCost[key];
+              if (elemDiff < 0) {
+                elem += '<td class="red left">(' + Utils.FormatNumToStr(elemDiff, true, 0) + ')</td></tr>';
+                elemSumNeed += elemDiff;
+              } else {
+                elem += '<td><img src="/cdn/all/both/interface/check_mark_17px.png" style="height:11px; float:left;"></td></tr>';
+              }
             }
           }
-          elem = (elem !== '') ? '<table><thead><tr><th colspan="3" align="center"><b>' + (uConst ? Constant.LanguageData[lang].next_Level + ' ' + needlevel : Constant.LanguageData[lang].next_Level + ' ' + costlevel) + '</b></th></tr></thead><tbody>' + elem + '</tbody><tfoot>' + time + '</tfoot></table>' : '<table><thead><tr><th colspan="3" align="center">' + Constant.LanguageData[lang].max_Level + '</th></tr></thead></table>';
+          // Summarized ressources and diff
+          var elemSumStyle = '<tr class="total"><td style="height: 11px; float: left;">Σ: </td><td>' + Utils.FormatNumToStr(elemSum, false, 0) + '</td>' + (elemSumNeed < 0 ? '<td class="red left">(' + Utils.FormatNumToStr(elemSumNeed, true, 0) + ')</td>' : '<td></td>') + '</tr>';
+          // Header and footer for howering over building
+          elem = (elem !== '') ? '<table><thead><tr><th colspan="3" align="center"><b>' + (uConst ? Constant.LanguageData[lang].next_Level + ' ' + needlevel : Constant.LanguageData[lang].next_Level + ' ' + costlevel) + '</b></th></tr></thead><tbody>' + elem + '</tbody><tfoot>' + elemSumStyle + time + '</tfoot></table>' : '<table><thead><tr><th colspan="3" align="center">' + Constant.LanguageData[lang].max_Level + '</th></tr></thead></table>';
           if (uConst) {
             elem = '<table><thead><tr><th colspan="3" align="center"><b>' + Constant.LanguageData[lang].constructing + '</b></th></tr></thead>' + '<tbody><tr><td></td><td>' + Utils.FormatFullTimeToDateString(building.getCompletionTime, true) + '</td></tr>' + '<tr><td><img src="/cdn/all/both/resources/icon_time.png" style="height: 11px; float: left;"></td><td><i>(' + Utils.FormatTimeLengthToStr(building.getCompletionTime - $.now(), 3, ' ') + ')</i></td></tr></tbody></table>' + elem;
           }
