@@ -25,7 +25,27 @@ Does not work with GM version 2.0 or higher and Firefox
 6. Click on the Troops in town tab on left side and go through each town with that.
 7. Click on "Show town".
 
-In case of problems please perform a reset in the tab "Settings".
+In case of problems please perform a reset in the tab "Options".
+
+### Options recommendation
+I normally use and test with the following options:
+| **Board Visibility**          | **Building Settings**          | **Display Settings**                                |
+|--------------------------------|--------------------------------|----------------------------------------------------|
+| ✅ Force hide on world view    | ⬜ Use alternative building list | ⬜ Show on top of Ikariam windows                  |
+| ✅ Force hide on island view   | ✅ Use compressed building list | ✅ Show above Ikariam on mouseover                |
+| ⬜ Force hide on city view     |                                | ⬜ Use smaller font size                           |
+|                                |                                | ⬜ Reduce total gold display                       |
+| **Army Settings**              | **Resource Settings**          | ✅ Hide news ticker                                |
+| ⬜ Show all military units      | ⬜ Hide hourly resources        | ⬜ Hide events                                     |
+| ⬜ Use IkaLog Battle Report Converter | ✅ Automatically confirm the daily bonus | ⬜ Hide the Info Window when login               |
+|                                |                                | ✅ Hide the bird swarm                             |
+|                                | ⬜ Hide tooltip "wine warning"  | ⬜ Hide animated citizens                          |
+|                                | Dropdown: Wine remaining: 48h  | ✅ No Piracy                                       |
+|                                |                                | ⬜ Hide Control center                             |
+| **Global Settings**            | **Language Settings**          | ⬜ Removes unnecessary descriptions                |
+| ⬜ Automatically check for updates | Dropdown: English              | ⬜ Deactivate new Ambrosia buying options          |
+
+
 
 ### History:
 Please find changelog in [CHANGELOG.md]
