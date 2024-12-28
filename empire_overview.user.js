@@ -25,7 +25,7 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 //
-// @version              1.2004
+// @version              1.2005
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -2428,7 +2428,7 @@
             }
           }
           // Summarized ressources and diff
-          var elemSumStyle = '<tr class="total"><td style="height: 11px; float: left;">Σ: </td><td>' + Utils.FormatNumToStr(elemSum, false, 0) + '</td>' + (elemSumNeed < 0 ? '<td class="red left">(' + Utils.FormatNumToStr(elemSumNeed, true, 0) + ')</td>' : '<td></td>') + '</tr>';
+          var elemSumStyle = '<tr class="total"><td style="height: 11px; float: left;">Σ: </td><td>' + Utils.FormatNumToStr(elemSum, false, 0) + '</td>' + (elemSumNeed < 0 ? '<td class="red left">(' + Utils.FormatNumToStr(elemSumNeed, true, 0) + ')</td>' : '<td><img src="/cdn/all/both/interface/check_mark_17px.png" style="height:11px; float:left;"></td>') + '</tr>';
           // Header and footer for howering over building
           elem = (elem !== '') ? '<table><thead><tr><th colspan="3" align="center"><b>' + (uConst ? Constant.LanguageData[lang].next_Level + ' ' + needlevel : Constant.LanguageData[lang].next_Level + ' ' + costlevel) + '</b></th></tr></thead><tbody>' + elem + '</tbody><tfoot>' + elemSumStyle + time + '</tfoot></table>' : '<table><thead><tr><th colspan="3" align="center">' + Constant.LanguageData[lang].max_Level + '</th></tr></thead></table>';
           if (uConst) {
