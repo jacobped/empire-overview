@@ -4452,7 +4452,7 @@
     },
     get CurrentCityId() {
       try {
-        var model = getModelSync();
+        var model = getCachedModel();
         var selectedId = null;
         if (model && model.relatedCityData && typeof model.relatedCityData.selectedCity !== 'undefined') {
           var sel = model.relatedCityData.selectedCity;
@@ -5150,13 +5150,13 @@
         }
       };
 
-      var model = getModelSync();
+      var model = getCachedModel();
       if (model) {
         run(model);
       } else {
-        whenModelReady(function (m) { run(m || getModelSync()); }).catch(function (err) {
+        whenModelReady(function (m) { run(m || getCachedModel()); }).catch(function (err) {
           console.warn('FetchAllTowns: waitForIkariamModel failed, attempting run anyway', err);
-          run(getModelSync());
+          run(getCachedModel());
         });
       }
     },
