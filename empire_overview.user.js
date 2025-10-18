@@ -26,7 +26,7 @@
 //
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
-// @require              https://github.com/jacobped/ika-scripts/raw/907be355cdfb8e2c25ede51313d76dd7fb4ef3d2/src/js/waitForIkariamModel.user.js
+// @require              https://github.com/jacobped/ika-scripts/raw/00078e84683b28d1fc2652903f128500d884c023/src/js/waitForIkariamModel.user.js
 // 
 // Special resource modules
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/programData.js
