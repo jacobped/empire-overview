@@ -17,6 +17,8 @@
 // @grant                GM_xmlhttpRequest
 // @grant                GM_openInTab
 // @grant                GM_log
+// @grant                GM_getResourceText
+// @grant                GM_getResourceURL
 //
 // @exclude              http://board.*.ikariam.gameforge.com*
 // @exclude              http://*.ikariam.gameforge.*/board
@@ -24,6 +26,10 @@
 //
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
+// 
+// Special resource modules
+// @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/programData.js
+// @resource             cssScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/css.js
 //
 // @version              1.2008
 //
@@ -37,13 +43,22 @@
 (function ($) {
   var jQuery = $;
   var isChrome;
-  if (typeof unsafeWindow.jQuery === 'undefined')
-    return;
   if (window.navigator.vendor.match(/Google/)) {
     isChrome = true;
+  } else {
+    isChrome = false;
   }
-  if (!isChrome) {
-    this.$ = this.jQuery = jQuery.noConflict(true);
+
+  // IMPORTANT: do NOT call jQuery.noConflict(true) here — that removes/replaces the page's jQuery
+  // and breaks game scripts (e.g. $.isValue). Use the local jQuery instance passed into the IIFE
+  // and make sure we don't overwrite the page's unsafeWindow.jQuery if it already exists.
+  if (typeof unsafeWindow.jQuery === 'undefined') {
+    // if the page doesn't yet expose jQuery, make ours available so page code (and other libs)
+    // that expect jQuery on window will not fail.
+    unsafeWindow.jQuery = jQuery;
+  }
+  if (typeof unsafeWindow.$ === 'undefined') {
+    unsafeWindow.$ = jQuery;
   }
 
   $.extend({
@@ -130,6 +145,78 @@
   var log = false;
   var timing = false;
   if (!unsafeWindow) unsafeWindow = window;
+
+  // Simplified: load the model directly from unsafeWindow. Disable the external wait module/polling.
+  var __cachedModel = null;
+
+  // Always read the live model from unsafeWindow synchronously.
+  function getCachedModel() {
+    try {
+      __cachedModel = (unsafeWindow && unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+    } catch (e) {
+      __cachedModel = null;
+    }
+    return __cachedModel;
+  }
+
+  // whenModelReady now simply resolves immediately with the current model (no polling).
+  function whenModelReady(cb) {
+    var p = Promise.resolve(getCachedModel());
+    return typeof cb === 'function' ? p.then(cb) : p;
+  }
+
+  // Generic GM helpers shared by all resource modules
+  const GM_MODULE_HELPERS = {
+    addStyle: (...args) => GM_addStyle(...args),
+    getValue: (...args) => GM_getValue(...args),
+    setValue: (...args) => GM_setValue(...args),
+    deleteValue: (...args) => GM_deleteValue(...args),
+    xmlHttpRequest: (...args) => GM_xmlhttpRequest(...args),
+    openInTab: (...args) => GM_openInTab(...args),
+    log: (...args) => GM_log(...args)
+  };
+
+  /**
+   * Load an ES module from a user-script @resource entry and initialize it.
+   * The function itself is not declared async but returns a Promise so callers
+   * can chain .then/.catch. It revokes the blob URL and calls init/default
+   * if present, passing GM_MODULE_HELPERS.
+   *
+   * Usage: loadResourceModule('cssScript').then(mod => { ... })
+   */
+  async function loadResourceModule(resourceName) {
+    try {
+      let text = null;
+      if (typeof GM_getResourceText === 'function') {
+        text = GM_getResourceText(resourceName);
+      } else if (typeof GM_getResourceURL === 'function') {
+        // GM_getResourceURL may return a blob URL; fetch it to get the text.
+        const url = GM_getResourceURL(resourceName);
+        const resp = await fetch(url);
+        text = await resp.text();
+      } else {
+        return Promise.reject(new Error('No method available to load resource: ' + resourceName));
+      }
+
+      const blob = new Blob([text], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      try {
+        const mod = await import(url);
+        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        if (mod && typeof mod.init === 'function') {
+          try { mod.init(GM_MODULE_HELPERS); } catch (e) { console.warn('module.init failed', e); }
+        } else if (mod && typeof mod.default === 'function') {
+          try { mod.default(GM_MODULE_HELPERS); } catch (e) { console.warn('module.default failed', e); }
+        }
+        return mod;
+      } catch (err) {
+        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        throw err;
+      }
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
 
   /***********************************************************************************************************************
    * Inject button into page before the page renders the YUI menu or it will not be animated (less work)
@@ -425,7 +512,7 @@
             city.getResource(Constant.Resources[resource]).increment(this.getResource(Constant.Resources[resource]));
           }
           this._updatedCity = true;
-          city = database.getCityFromId(this.originCityId);
+          city = database.getCityFromId(this.getOriginCityId);
           if (city) {
             city.updateActionPoints(city.getAvailableActions + 1);
           }
@@ -1832,6 +1919,8 @@
         empire.CheckForUpdates(true);
       });
 
+      initResourceProduction();
+
     },
 
     CheckForUpdates: function (forced) {
@@ -2053,6 +2142,37 @@
       army: {}
     },
     _cssResLoaded: false,
+    // Add cached selectors
+    _cachedSelectors: {
+      $empireBoard: null,
+      $empireTabs: null,
+      $resTab: null,
+      $buildTab: null,
+      $armyTab: null,
+      $settingsTab: null,
+      $helpTab: null
+    },
+
+    // Add method to initialize cached selectors
+    _initCachedSelectors: function() {
+      this._cachedSelectors.$empireBoard = $('#empireBoard');
+      this._cachedSelectors.$empireTabs = $('#empire_Tabs');
+      this._cachedSelectors.$resTab = $('#ResTab');
+      this._cachedSelectors.$buildTab = $('#BuildTab');
+      this._cachedSelectors.$armyTab = $('#ArmyTab');
+      this._cachedSelectors.$settingsTab = $('#SettingsTab');
+      this._cachedSelectors.$helpTab = $('#HelpTab');
+    },
+    
+    // Add method to get cached selector with lazy initialization
+    _getCachedSelector: function(name) {
+      if (!this._cachedSelectors[name] || this._cachedSelectors[name].length === 0) {
+        // Re-initialize if selector is null or empty
+        this._initCachedSelectors();
+      }
+      return this._cachedSelectors[name];
+    },
+
     toolTip: {
       elem: null,
       timer: null,
@@ -2396,6 +2516,8 @@
         }
         // Tooltip presented when hovering over a building in buildings view
         function getBuildingTooltip(building) {
+          // defensive: building may be undefined during model/UI race
+          if (!building) return '';
           var uConst = building.isUpgrading;
           var resourceCost = building.getUpgradeCost;
           var serverTyp = 1;
@@ -2625,65 +2747,95 @@
     },
     getSettingsTable: function () {
       var lang = database.settings.languageChange.value;
-      var wineOut = '';
       var server = ikariam.Nationality();
-      if (server == 'de') {
-        wineOut = ' <span><input type="checkbox" id="empire_wineOut" ' + (database.settings.wineOut.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].wineOut_description + '"> ' + Constant.LanguageData[lang].wineOut + '</nobr></span>';
+
+      function chk(id, labelKey, descKey) {
+        var s = database.settings[id] && database.settings[id].value ? 'checked="checked"' : '';
+        return '<span><input type="checkbox" id="empire_' + id + '" ' + s + '/><nobr data-tooltip="' + Constant.LanguageData[lang][descKey || id + '_description'] + '"> ' + Constant.LanguageData[lang][labelKey || id] + '</nobr></span>';
       }
-      var piracy = '';
-      if (database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY)) {
-        piracy = ' <span><input type="checkbox" id="empire_noPiracy" ' + (database.settings.noPiracy.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].noPiracy_description + '"> ' + Constant.LanguageData[lang].noPiracy + '</nobr></span>';
+      function sel(id, options, descKey, formatOption) {
+        var cur = database.settings[id].value;
+        var opts = options.map(function (o) {
+          var val = typeof o === 'object' ? o.value : o;
+          var text = formatOption ? formatOption(o) : (Constant.LanguageData[lang][val] || (typeof o === 'object' ? o.label : o));
+          var selected = (cur == val) ? 'selected=selected' : '';
+          return '<option value="' + val + '" ' + selected + '>' + text + '</option>';
+        }).join('');
+        return '<span><select id="empire_' + id + '">' + opts + '</select><nobr data-tooltip="' + Constant.LanguageData[lang][descKey || id + '_description'] + '"> ' + Constant.LanguageData[lang][id] + '</nobr></span>';
       }
-      var elems = '<div id="SettingsTab"><div>';
-      var inits = '<div class="options" style="clear:right"><span class="categories">' + Constant.LanguageData[lang].building_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_alternativeBuildingList" ' + (database.settings.alternativeBuildingList.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].alternativeBuildingList_description + '"> ' + Constant.LanguageData[lang].alternativeBuildingList + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_compressedBuildingList" ' + (database.settings.compressedBuildingList.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].compressedBuildingList_description + '"> ' + Constant.LanguageData[lang].compressedBuildingList + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].resource_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_hourlyRess" ' + (database.settings.hourlyRess.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hourlyRes_description + '"> ' + Constant.LanguageData[lang].hourlyRes + '</nobr></span>'
-        + ' ' + wineOut + ''
-        + ' <span><input type="checkbox" id="empire_dailyBonus" ' + (database.settings.dailyBonus.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].dailyBonus_description + '"> ' + Constant.LanguageData[lang].dailyBonus + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_wineWarning" ' + (database.settings.wineWarning.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].wineWarning_description + '"> ' + Constant.LanguageData[lang].wineWarning + '</nobr></span>'
-        + ' <span><select id="empire_wineWarningTime"><option value="0"' + (database.settings.wineWarningTime.value === 0 ? 'selected=selected' : '') + '> ' + Constant.LanguageData[lang].off + '</option><option value="12"' + (database.settings.wineWarningTime.value == 12 ? 'selected=selected' : '') + '> 12' + Constant.LanguageData[lang].hour + '</option><option value="24"' + (database.settings.wineWarningTime.value == 24 ? 'selected=selected' : '') + '> 24' + Constant.LanguageData[lang].hour + '</option><option value="36"' + (database.settings.wineWarningTime.value == 36 ? 'selected=selected' : '') + '> 36' + Constant.LanguageData[lang].hour + '</option><option value="48"' + (database.settings.wineWarningTime.value == 48 ? 'selected=selected' : '') + '> 48' + Constant.LanguageData[lang].hour + '</option><option value="96"' + (database.settings.wineWarningTime.value == 96 ? 'selected=selected' : '') + '> 96' + Constant.LanguageData[lang].hour + '</option></select><nobr data-tooltip="' + Constant.LanguageData[lang].wineWarningTime_description + '"> ' + Constant.LanguageData[lang].wineWarningTime + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].language_category + '</span>'
-        + ' <span><select id="empire_languageChange"><option value="en"' + (database.settings.languageChange.value == 'en' ? 'selected=selected' : '') + '> ' + Constant.LanguageData[lang].en + '</option></select><nobr data-tooltip="' + Constant.LanguageData[lang].languageChange_description + '"> ' + Constant.LanguageData[lang].languageChange + '</nobr></span>'
-        + '</div>';
-      var features = '<div class="options">'
-        + ' <span class="categories">' + Constant.LanguageData[lang].visibility_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_hideOnWorldView" ' + (database.settings.hideOnWorldView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnWorldView_description + '"> ' + Constant.LanguageData[lang].hideOnWorldView + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_hideOnIslandView" ' + (database.settings.hideOnIslandView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnIslandView_description + '"> ' + Constant.LanguageData[lang].hideOnIslandView + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_hideOnCityView" ' + (database.settings.hideOnCityView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnCityView_description + '"> ' + Constant.LanguageData[lang].hideOnCityView + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].army_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_fullArmyTable" ' + (database.settings.fullArmyTable.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].fullArmyTable_description + '"> ' + Constant.LanguageData[lang].fullArmyTable + '</nobr></span>'
-        // + ' <span><input type="checkbox" id="empire_playerInfo" ' + (database.settings.playerInfo.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="'+ Constant.LanguageData[lang].playerInfo_description +'"> '+ Constant.LanguageData[lang].playerInfo +'</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_onIkaLogs" ' + (database.settings.onIkaLogs.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].onIkaLogs_description + '"> ' + Constant.LanguageData[lang].onIkaLogs + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].global_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_autoUpdates" ' + (database.settings.autoUpdates.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].autoUpdates_description + '"> ' + Constant.LanguageData[lang].autoUpdates + '</nobr></span>'
-        + '</div>';
-      var display = '<div class="options">'
-        + ' <span class="categories">' + Constant.LanguageData[lang].display_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_onTop" ' + (database.settings.onTop.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].onTop_description + '"> ' + Constant.LanguageData[lang].onTop + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_windowTennis" ' + (database.settings.windowTennis.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].windowTennis_description + '"> ' + Constant.LanguageData[lang].windowTennis + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_smallFont" ' + (database.settings.smallFont.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].smallFont_description + '"> ' + Constant.LanguageData[lang].smallFont + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_GoldShort" ' + (database.settings.GoldShort.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].goldShort_description + '"> ' + Constant.LanguageData[lang].goldShort + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_newsTicker" ' + (database.settings.newsTicker.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].newsticker_description + '"> ' + Constant.LanguageData[lang].newsticker + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_event" ' + (database.settings.event.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].event_description + '"> ' + Constant.LanguageData[lang].event + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_logInPopup" ' + (database.settings.logInPopup.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].logInPopup_description + '"> ' + Constant.LanguageData[lang].logInPopup + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_birdSwarm" ' + (database.settings.birdSwarm.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].birdswarm_description + '"> ' + Constant.LanguageData[lang].birdswarm + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_walkers" ' + (database.settings.walkers.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].walkers_description + '"> ' + Constant.LanguageData[lang].walkers + '</nobr></span>'
-        + ' ' + piracy + ''
-        + ' <span><input type="checkbox" id="empire_controlCenter" ' + (database.settings.controlCenter.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].control_description + '"> ' + Constant.LanguageData[lang].control + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_withoutFable" ' + (database.settings.withoutFable.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].unnecessaryTexts_description + '"> ' + Constant.LanguageData[lang].unnecessaryTexts + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_ambrosiaPay" ' + (database.settings.ambrosiaPay.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].ambrosiaPay_description + '"> ' + Constant.LanguageData[lang].ambrosiaPay + '</nobr></span>'
-        + '</div>';
-      elems += features + inits + display + '<div style="clear:left"></div>';
-      elems += '</div></div>';
-      elems += '<div style="clear:left"><hr><p>&nbsp; ' + Constant.LanguageData[lang].current_Version + ' <b>&nbsp;' + empire.version + '</b></p><p>&nbsp; ' + Constant.LanguageData[lang].ikariam_Version + ' <b style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=version\')">&nbsp;' + ikariam.GameVersion() + '</b></p></div><br>';
-      elems += '<div class="buttons">' + '<button data-tooltip="' + Constant.LanguageData[lang].reset + '" id="empire_Reset_Button">Reset</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].goto_website + '" id="empire_Website_Button">' + Constant.LanguageData[lang].website + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].Check_for_updates + '" id="empire_Update_Button">' + Constant.LanguageData[lang].check + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].Report_bug + '" id="empire_Bug_Button">' + Constant.LanguageData[lang].report + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].save_settings + '" id="empire_Save_Button" onclick="ajaxHandlerCall(\'?view=city&oldBackgroundView\')">' + Constant.LanguageData[lang].save + '</button>';
-      return elems;
+
+      // conditional special items
+      var wineOutHTML = server === 'de' ? chk('wineOut', 'wineOut', 'wineOut_description') : '';
+      var piracyHTML = database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY) ? chk('noPiracy', 'noPiracy', 'noPiracy_description') : '';
+
+      var parts = [];
+
+      parts.push('<div id="SettingsTab"><div>');
+      // Building + Resource block
+      parts.push('<div class="options" style="clear:right"><span class="categories">' + Constant.LanguageData[lang].building_category + '</span>');
+      parts.push(chk('alternativeBuildingList', 'alternativeBuildingList', 'alternativeBuildingList_description'));
+      parts.push(chk('compressedBuildingList', 'compressedBuildingList', 'compressedBuildingList_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].resource_category + '</span>');
+      parts.push(chk('hourlyRess', 'hourlyRes', 'hourlyRes_description'));
+      parts.push(wineOutHTML);
+      parts.push(chk('dailyBonus', 'dailyBonus', 'dailyBonus_description'));
+      parts.push(chk('wineWarning', 'wineWarning', 'wineWarning_description'));
+      parts.push(sel('wineWarningTime', [0, 12, 24, 36, 48, 96], 'wineWarningTime_description', function (v) {
+        return (v === 0 ? Constant.LanguageData[lang].off : v + Constant.LanguageData[lang].hour);
+      }));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].language_category + '</span>');
+      parts.push(sel('languageChange', [{ value: 'en', label: Constant.LanguageData[lang].en }], 'languageChange_description'));
+      parts.push('</div>');
+
+      // Visibility / Army / Global
+      parts.push('<div class="options">');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].visibility_category + '</span>');
+      parts.push(chk('hideOnWorldView', 'hideOnWorldView', 'hideOnWorldView_description'));
+      parts.push(chk('hideOnIslandView', 'hideOnIslandView', 'hideOnIslandView_description'));
+      parts.push(chk('hideOnCityView', 'hideOnCityView', 'hideOnCityView_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].army_category + '</span>');
+      parts.push(chk('fullArmyTable', 'fullArmyTable', 'fullArmyTable_description'));
+      parts.push(chk('onIkaLogs', 'onIkaLogs', 'onIkaLogs_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].global_category + '</span>');
+      parts.push(chk('autoUpdates', 'autoUpdates', 'autoUpdates_description'));
+      parts.push('</div>');
+
+      // Display block
+      parts.push('<div class="options">');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].display_category + '</span>');
+      parts.push(chk('onTop', 'onTop', 'onTop_description'));
+      parts.push(chk('windowTennis', 'windowTennis', 'windowTennis_description'));
+      parts.push(chk('smallFont', 'smallFont', 'smallFont_description'));
+      parts.push(chk('GoldShort', 'goldShort', 'goldShort_description'));
+      parts.push(chk('newsTicker', 'newsticker', 'newsticker_description'));
+      parts.push(chk('event', 'event', 'event_description'));
+      parts.push(chk('logInPopup', 'logInPopup', 'logInPopup_description'));
+      parts.push(chk('birdSwarm', 'birdswarm', 'birdswarm_description'));
+      parts.push(chk('walkers', 'walkers', 'walkers_description'));
+      parts.push(piracyHTML);
+      parts.push(chk('controlCenter', 'control', 'control_description'));
+      parts.push(chk('withoutFable', 'unnecessaryTexts', 'unnecessaryTexts_description'));
+      parts.push(chk('ambrosiaPay', 'ambrosiaPay', 'ambrosiaPay_description'));
+      parts.push('</div>');
+
+      parts.push('<div style="clear:left"></div>');
+      parts.push('</div></div>');
+
+      // version + buttons
+      parts.push('<div style="clear:left"><hr><p>&nbsp; ' + Constant.LanguageData[lang].current_Version + ' <b>&nbsp;' + empire.version + '</b></p><p>&nbsp; ' + Constant.LanguageData[lang].ikariam_Version + ' <b style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=version\')">&nbsp;' + ikariam.GameVersion() + '</b></p></div><br>');
+      parts.push('<div class="buttons">');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].reset + '" id="empire_Reset_Button">Reset</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].goto_website + '" id="empire_Website_Button">' + Constant.LanguageData[lang].website + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].Check_for_updates + '" id="empire_Update_Button">' + Constant.LanguageData[lang].check + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].Report_bug + '" id="empire_Bug_Button">' + Constant.LanguageData[lang].report + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].save_settings + '" id="empire_Save_Button" onclick="ajaxHandlerCall(\'?view=city&oldBackgroundView\')">' + Constant.LanguageData[lang].save + '</button>');
+      parts.push('</div>');
+
+      return parts.join('');
     },
     DrawHelp: function () {
       var lang = database.settings.languageChange.value;
@@ -3061,44 +3213,113 @@
       }
       this.AttachClickHandlers();
     },
+        // small generators to produce per-resource and per-city fragments (DRY)
+    _makeResourceCell: function (resourceName) {
+      return '<td class="resource ' + resourceName + '">\n' +
+        '    <span class="icon safeImage"></span>\n' +
+        '    <span class="current"></span>\n' +
+        '   <span class="incoming" data-tooltip="dynamic"></span>\n' +
+        '    <div class="progressbar ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n' +
+        '      <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n' +
+        '    </div>\n' +
+        '</td>\n' +
+        '<td class="resource ' + resourceName + '">\n' +
+        '    <span class="prodconssubsum production Green" data-tooltip="dynamic"></span>\n' +
+        '    <span class="prodconssubsum consumption Red" data-tooltip="dynamic"></span>\n' +
+        '    <span class="emptytime Red"></span>\n' +
+        '</td>';
+    },
+    _makeResourceRow: function (city) {
+      var lang = database.settings.languageChange.value;
+      var resourceCells = '';
+      // build the repeated resource cells by iterating the resource list
+      $.each(Constant.Resources, function (key, resourceName) {
+        resourceCells += render._makeResourceCell(resourceName);
+      });
+
+      var info = city.isUpgrading === true ? '!' : '';
+      var progSci = '';
+      if (city.getBuildingFromName && city.getBuildingFromName(Constant.Buildings.ACADEMY)) {
+        progSci = '<div class="progressbarSci ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">' +
+                  '<div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div></div>';
+      }
+      var wonder_size = 25;
+      var row = '<tr id="resource_{0}">\n' +
+        '  <td class="city_name">\n' +
+        '    <span></span>\n' +
+        '    <span class="clickable">{2}</span>\n' +
+        '    <sub>{3}</sub>\n' +
+        '    <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n' +
+        '  </td>\n' +
+        '  <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit" data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n' +
+        '  <td class="empireactions">\n' +
+        '    <div class="worldmap" data-tooltip="{7}" style="cursor:pointer;"></div>\n' +
+        '    <div class="city" data-tooltip="{8}" style="cursor:pointer;"></div>\n' +
+        '    <div class="island" data-tooltip="{9}" style="cursor:pointer;"></div>\n' +
+        '    <div class="islandwood" data-tooltip="{10}" style="cursor:pointer;"></div>\n' +
+        '    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{11}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="{12}"></div>\n' +
+        '    <div class="transport" data-tooltip="{13}" style="cursor:pointer;"></div>\n' +
+        '  </td>\n' +
+        '  <td class="population" data-tooltip="dynamic">\n' +
+        '    <span class="pop" data-tooltip="dynamic"></span>\n' +
+        '    <span></span>\n' +
+        '    <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n' +
+        '      <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n' +
+        '    </div>\n' +
+        '  </td>\n' +
+        '  <td class="population_happiness"><span class="happy" data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span></td>\n' +
+        '  <td class="research" data-tooltip="dynamic"><span class="scientists" data-tooltip="dynamic"></span><span></span>' + progSci + '</td>\n' +
+        '  ' + resourceCells + '\n' +
+        '</tr>';
+
+      return Utils.format(row, [city.getId, /* placeholder for older code */ '', city.getName || '', city.getAvailableBuildings || '', progSci, info, info ? Constant.LanguageData[lang].constructing : '', Constant.LanguageData[lang].to_world, Constant.LanguageData[lang].to_town_hall + ' {2}', Constant.LanguageData[lang].to_island, Constant.LanguageData[lang].to_saw_mill, city.getTradeGood, Constant.LanguageData[lang].to_mine, Constant.LanguageData[lang].transporting]);
+    },
     getResourceTable: function () {
       var lang = database.settings.languageChange.value;
-      //var header = '<colgroup span="3"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="wonder"></th>\n    <th class="empireactions">\n       <div class="trading" data-tooltip="'+ Constant.LanguageData[lang].transport +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="'+ Constant.LanguageData[lang].agora +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="'+ Constant.LanguageData[lang].member +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="'+ Constant.LanguageData[lang].satisfaction +'"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
-      var header = '<colgroup span="2"/>\n      <colgroup span="1"/>\n    <colgroup span="1"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="empireactions">\n       <div class="trading" data-tooltip="' + Constant.LanguageData[lang].transport + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="' + Constant.LanguageData[lang].agora + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="' + Constant.LanguageData[lang].member + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="' + Constant.LanguageData[lang].satisfaction + '"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
-      var table = '<table class="resources">\n    {0}\n   <tbody>{1}</tbody>\n    <tfoot>{2}</tfoot>\n</table>';
-      //var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n        <td class="wonder" data-tooltip="dynamic"  style="cursor:pointer;">\n        <div class="wonder" style="background: url(/cdn/all/both/wonder/w{7}.png) no-repeat center center; background-size: {8}px auto;"></div></td>\n    <td class="empireactions">\n        <div class="worldmap" data-tooltip="'+ Constant.LanguageData[lang].to_world +'" style="cursor:pointer;"></div>        <div class="city" data-tooltip="'+ Constant.LanguageData[lang].to_town_hall +' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="'+ Constant.LanguageData[lang].to_island +'" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="'+ Constant.LanguageData[lang].to_saw_mill +'" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="'+ Constant.LanguageData[lang].to_mine +'"></div>\n <div class="transport" data-tooltip="'+ Constant.LanguageData[lang].transporting +' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
-      var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n          <td class="empireactions">\n        <div class="worldmap" data-tooltip="' + Constant.LanguageData[lang].to_world + '" style="cursor:pointer;"></div>        <div class="city" data-tooltip="' + Constant.LanguageData[lang].to_town_hall + ' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="' + Constant.LanguageData[lang].to_island + '" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="' + Constant.LanguageData[lang].to_saw_mill + '" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="' + Constant.LanguageData[lang].to_mine + '"></div>\n <div class="transport" data-tooltip="' + Constant.LanguageData[lang].transporting + ' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
-      var resourceCell = '<td class="resource {0}">\n    <span class="icon safeImage"></span>\n    <span class="current"></span>\n   <span class="incoming" data-tooltip="dynamic"></span>\n    <div class="progressbar ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n    <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n    </div>\n  </td>\n<td class="resource {0}">\n    <span class="prodconssubsum production Green" data-tooltip="dynamic"></span>\n    <span class="prodconssubsum consumption Red" data-tooltip="dynamic"></span>\n    <span class="emptytime Red"></span>\n</td>';
-      //var footer = '<tr>\n    <td colspan="3"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
-      var footer = '<tr>\n    <td colspan="2"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
 
-      return Utils.format(table, [getHead(), getBody(), getFooter()]);
+      var header = '<colgroup span="2"/>\n' +
+        '<colgroup span="1"/>\n' +
+        '<colgroup span="1"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<thead>\n' +
+        '<tr class="header_row">\n' +
+        '  <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n' +
+        '  <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n' +
+        '  <th class="empireactions"></th>\n' +
+        '  <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n' +
+        '  <th class="growth_header icon growthImage" data-tooltip="' + Constant.LanguageData[lang].satisfaction + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n' +
+        '  <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n' +
+        '  <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n' +
+        '  <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n' +
+        '  <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '</tr>\n' +
+        '</thead>';
 
-      function getHead() {
-        return Utils.format(header, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, Constant.LanguageData[lang].population, Constant.LanguageData[lang].researchP, Constant.LanguageData[lang].finances_, Constant.LanguageData[lang].wood_, Constant.LanguageData[lang].wine_, Constant.LanguageData[lang].marble_, Constant.LanguageData[lang].crystal_, Constant.LanguageData[lang].sulphur_, database.getGlobalData.getLocalisedString('Current form')]);
-      }
+      var tableTpl = '<table class="resources">\n{0}\n<tbody>{1}</tbody>\n<tfoot>{2}</tfoot>\n</table>';
+
       function getBody() {
         var rows = '';
         $.each(database.cities, function (cityId, city) {
-          var resourceCells = '';
-          var info = city.isUpgrading === true ? '!' : '';
-          var progSci = '';
-          if (this.getBuildingFromName(Constant.Buildings.ACADEMY)) {
-            progSci = '<div class="progressbarSci ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></span></div>';
-          }
-          var wonder_size = 20;
-          if (city.getWonder == 7 || 1)
-            wonder_size = 25;
-          $.each(Constant.Resources, function (key, resourceName) {
-            resourceCells += Utils.format(resourceCell, [resourceName]);
-          });
-          rows += Utils.format(resourceRow, [city.getId, resourceCells, city._name, city.getTradeGood, progSci, info, info ? Constant.LanguageData[lang].constructing : '', city.getTradeGoodID, wonder_size]);
+          rows += render._makeResourceRow(city);
         });
         return rows;
       }
+
       function getFooter() {
-        return footer;
+        // Keep the original footer markup (kept minimal here)
+        return '<tr>\n<td colspan="2"></td>\n<td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n<td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n<td id="t_research" class="total" data-tooltip="dynamic"></td>\n<td id="t_currentgold" class="total"></td>\n<td id="t_goldincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n<td id="t_currentwood" class="total"></td>\n<td id="t_woodincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentwine" class="total"></td>\n<td id="t_wineincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentmarble" class="total"></td>\n<td id="t_marbleincome" class="total"data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentglass" class="total"></td>\n<td id="t_glassincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentsulfur" class="total"></td>\n<td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n</tr>';
       }
+
+      return Utils.format(tableTpl, [header, getBody(), getFooter()]);
     },
     getArmyTable: function () {
       var lang = database.settings.languageChange.value;
@@ -3107,70 +3328,56 @@
       var headerCell = '<th data-tooltip="{0}" style="background:url(\'{1}\')  no-repeat center center; background-size: auto 24px; cursor: pointer;" colspan="2" class="army unit icon {2}" onclick="ajaxHandlerCall(\'?view=unitdescription&{5}Id={3}&helpId={4}\'); return false;">&nbsp;</th>\n\n';
       var bodyRow = '<tr id="army_{0}">\n    <td class="city_name"><img><span class="clickable"></span><sub></sub></td>\n    <td class="action_points"><span class="ap"></span>&nbsp;&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="5"></span></td>\n    <td class="empireactions">\n     <div class="deploymentarmy"data-tooltip="' + Constant.LanguageData[lang].transporting_units + '&nbsp;{2}" style="cursor:pointer;"></div>\n  <br>  <div class="deploymentfleet" data-tooltip="' + Constant.LanguageData[lang].transporting_fleets + '&nbsp;{2}" style="cursor:pointer;"></div>\n</td> \n <td class="empireactions">{3} <br> {4}  \n    </td>\n <td class="expenses"> {5} </td>\n   {1}\n</tr>';
       var bodyCell = '</td><td style="" class="army unit {0}">\n    <span>{1}</span>\n</td>\n<td style="" class="army movement {0}" data-tooltip="dynamic">\n    <span class="More Green {0}">{2}</span>\n  <br>  <span class="More Blue {0}">{3}</span>\n</td>';
-      var costCell = '';
       var footerRow = '<tr class="totals_row">\n    <td class="city_name"></td>\n    <td></td>\n   <td class="sigma" colspan="2">Σ</td><td>&nbsp;{1}&nbsp;</td>\n    {0}\n</tr>';
       var footerCell = '<td class="army total {0} unit">\n    <span></span>\n</td>\n<td style="" class="army total {0} movement">\n    <span class="More Green"></span>\n    <span class="More Blue"></span>\n</td>';
 
-      return Utils.format(table, [getHead(), getBody(), getFooter()]);
-
       function getHead() {
-        var headerCells = '';
-        var cols = '<colgroup span=4/><colgroup></colgroup>';
-        for (var category in Constant.unitOrder) {
-          cols += '<colgroup>';
-          $.each(Constant.unitOrder[category], function (index, value) {
-            var helpId = 9;
-            var unit = 'unit';
-            if (Constant.UnitData[value].id < 300) {
-              helpId = 10;
-              unit = 'ship';
-            }
-            headerCells += Utils.format(headerCell, [Constant.LanguageData[lang][value], getImage(value), value, Constant.UnitData[value].id, helpId, unit]);
-            cols += '<col><col>';
-          });
-          cols += '</colgroup>';
-        }
-        return cols + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
+        var cols = ['<colgroup span=4/>', '<colgroup></colgroup>'];
+        var headerCells = Object.keys(Constant.unitOrder).map(function (category) {
+          var cells = Constant.unitOrder[category].map(function (value) {
+            var helpId = Constant.UnitData[value].id < 300 ? 10 : 9;
+            var unit = Constant.UnitData[value].id < 300 ? 'ship' : 'unit';
+            cols.push('<col><col>');
+            return Utils.format(headerCell, [Constant.LanguageData[lang][value], getImage(value), value, Constant.UnitData[value].id, helpId, unit]);
+          }).join('');
+          return cells;
+        }).join('');
+        // assemble colgroups (flat col tags already pushed)
+        var colgroups = cols.join('');
+        return colgroups + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
       }
 
       function getBody() {
-        var body = '';
-        $.each(database.cities, function (cityId, city) {
-          var rowCells = '';
-          var divbarracks = '';
-          if (this.getBuildingFromName(Constant.Buildings.BARRACKS)) {
-            divbarracks = '<div class="barracks" data-tooltip="' + Constant.LanguageData[lang].to_barracks + '&nbsp;{2}" style="cursor:pointer;"></div>';
-          }
-          var divshipyard = '&nbsp;';
-          if (this.getBuildingFromName(Constant.Buildings.SHIPYARD)) {
-            divshipyard = '<div class="shipyard" data-tooltip="' + Constant.LanguageData[lang].to_shipyard + '&nbsp;{2}" style="cursor:pointer;"></div>';
-          }
-          var cost = 0; //city.military.getUnits.getUnit('phalanx')*Constant.UnitData.phalanx.baseCost; //geht für die Hopps todo, alle Einheiten integrieren
-          for (var category in Constant.unitOrder) {
-            $.each(Constant.unitOrder[category], function (index, value) {
+        return Object.keys(database.cities).map(function (cityId) {
+          var city = database.cities[cityId];
+          var rowCells = Object.keys(Constant.unitOrder).map(function (category) {
+            return Constant.unitOrder[category].map(function (value) {
               var builds = city.getUnitBuildsByUnit(value);
-              rowCells += Utils.format(bodyCell, [value, city.military.getUnits.getUnit(value) || '', builds[value] ? builds[value] : '', '']);
-            });
-          }
-          body += Utils.format(bodyRow, [city.getId, rowCells, city._name, divbarracks, divshipyard, cost]);
-        });
-        return body;
+              return Utils.format(bodyCell, [value, city.military.getUnits.getUnit(value) || '', builds && builds[value] ? builds[value] : '', '']);
+            }).join('');
+          }).join('');
+          var divbarracks = city.getBuildingFromName(Constant.Buildings.BARRACKS) ? '<div class="barracks" data-tooltip="' + Constant.LanguageData[lang].to_barracks + '&nbsp;{2}" style="cursor:pointer;"></div>' : '';
+          var divshipyard = city.getBuildingFromName(Constant.Buildings.SHIPYARD) ? '<div class="shipyard" data-tooltip="' + Constant.LanguageData[lang].to_shipyard + '&nbsp;{2}" style="cursor:pointer;"></div>' : '&nbsp;';
+          var cost = 0;
+          return Utils.format(bodyRow, [city.getId, rowCells, city._name, divbarracks, divshipyard, cost]);
+        }).join('');
       }
 
       function getFooter() {
-        var footerCells = '';
         var expense = Utils.FormatNumToStr(database.getGlobalData.finance.armyCost + database.getGlobalData.finance.fleetCost);
-        for (var category in Constant.unitOrder) {
-          $.each(Constant.unitOrder[category], function (index, value) {
-            footerCells += Utils.format(footerCell, [value]);
-          });
-        }
+        var footerCells = Object.keys(Constant.unitOrder).map(function (category) {
+          return Constant.unitOrder[category].map(function (value) {
+            return Utils.format(footerCell, [value]);
+          }).join('');
+        }).join('');
         return Utils.format(footerRow, [footerCells, expense]);
       }
 
       function getImage(unitID) {
         return (Constant.UnitData[unitID].type == 'fleet') ? '/cdn/all/both/characters/fleet/60x60/' + unitID + '_faceright.png' : '/cdn/all/both/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
       }
+
+      return Utils.format(table, [getHead(), getBody(), getFooter()]);
     },
     getBuildingTable: function () {
       var lang = database.settings.languageChange.value;
@@ -3182,78 +3389,67 @@
       var counts = database.getBuildingCounts;
       var buildingOrder = (database.settings.alternativeBuildingList.value ? Constant.altBuildingOrder : database.settings.compressedBuildingList.value ? Constant.compBuildingOrder : Constant.buildingOrder);
 
-      return Utils.format(table, [getHead(), getBody()]);
-
       function getHead() {
-        var headerCells = '';
+        // build colgroups and headerCells concisely
         var colgroup = '<colgroup span="3"></colgroup>';
-        for (var category in buildingOrder) {
+        var headerCells = Object.keys(buildingOrder).map(function (category) {
           var cols = '';
-          $.each(buildingOrder[category], function (index, value) {
+          var cells = buildingOrder[category].map(function (value) {
             if (value == 'colonyBuilding') {
-              if (!database.settings.compressedBuildingList.value || !counts[value]) {
-                return true;
-              }
+              if (!database.settings.compressedBuildingList.value || !counts[value]) return '';
               cols += '<col span="' + counts[value] + '">';
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang].palace + '/' + Constant.LanguageData[lang].palaceColony, Constant.BuildingData[Constant.Buildings.PALACE].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData.palace.buildingId]);
+              return Utils.format(headerCell, [Constant.LanguageData[lang].palace + '/' + Constant.LanguageData[lang].palaceColony, Constant.BuildingData[Constant.Buildings.PALACE].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData.palace.buildingId]).replace('50px auto', '38px 28px');
             } else if (value == 'productionBuilding') {
-              if (!database.settings.compressedBuildingList.value || !counts[value]) {
-                return true;
-              }
+              if (!database.settings.compressedBuildingList.value || !counts[value]) return '';
               cols += '<col span="' + counts[value] + '">';
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang].stonemason + '/' + Constant.LanguageData[lang].winegrower + '/' + Constant.LanguageData[lang].alchemist + '/' + Constant.LanguageData[lang].glassblowing, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAUCAMAAACknt2MAAABelBMVEUAAADp49mgkICxmnzVuIxMcwtciQ90pSC/tKR7aFWOfGmIdmPKr4lomxChyk/YxKjTyrzl2slrVkKBblu5ooXp0a3NwrOqm4uNeWRTMzMnGRZFQBvb0sS0p5j18OiTgW3cvpSeXF07JSSJUlLFeHY2NhZzrRKZh3XmyJwPCgl7jzSHyBXlx53EuateSje0amp0YE2Fc2FzSEeFqzfoyJftylO7l1312oXv0GzWyqzN0MH15b311WO3iy2jchyLXiuZrqtyt9uJx+bP2M789+/sz3nv2p7+5IOXZRWHVA/jxou7vquTyuS7x72MqKmEw+J/wOFdk6ylsaXsz6Xz1njKnzTBlkF6SAvhvE2TsraVzeiNyeZ8ttJ7v+EzXnXJ1M2tfiKts6S63ex2utyUw9hFhqV6ss2W0O7fvmDUrUJnnrOk0+tjq8602uzO6fbCyr7Eu6BqrM1tstS74fKbzeXS6/dvud7OrG1PlLeMwNfW7viu2e2i0ObK4OYudx14AAAAAXRSTlMAQObYZgAAAAFiS0dEAIgFHUgAAAAJcEhZcwAAAEgAAABIAEbJaz4AAAFfSURBVCgVBcFLTlNhGADQ8/29t/e/reVhChWkUDFRE0hM1IlxYiIzhy5EN+ASTNyBO3DoIpw7VBNAiga0QFKsPK7nBBARV4AiIq4ukUBWVd0bQI0OJJjPC3VcV0AVTdOGhKVot//0TEFR9pebWQ8J1d9qNjxZjhGKYV3XI7N7JLDfU+dh48HmekrKcjYab0m2Y7GeP9tb2ztCL5meT8J45UJre5KOrlZv/hr0TyeXk3p6sdBqfc96439p399GXdx2Pbxv47zTreeiGcxKAABF8aiA/tZjAZ5EfAYA0ALDFKsrB4Cn63sgwbOyVeYu4HnOL0BgJyJOFkR88jIiIiI+ouDVecfhMCIa5iLix1oEJDtnnShmZ2mcT8k5VXdzzpB20kn/8HJkcfVnw4c8V09znr5GSpsbX5qlruOvA7zZbbdXqvJWhfR799tgduzhnVY9z/vtnN9VdfvgLQAAAPgPmQZaHvndsJEAAAAASUVORK5CYII=', counts[value], "?view=buildingDetail&helpId=1&buildingId=21"]).replace('50px auto', '38px 28px');
+              return Utils.format(headerCell, [Constant.LanguageData[lang].stonemason + '/' + Constant.LanguageData[lang].winegrower + '/' + Constant.LanguageData[lang].alchemist + '/' + Constant.LanguageData[lang].glassblowing, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAUCAMAAACknt2M...', counts[value], "?view=buildingDetail&helpId=1&buildingId=21"]).replace('50px auto', '38px 28px');
             } else if (counts[value]) {
-              cols += '<col span="' + counts[value] + '">'; //Constant.LanguageData[lang][value]
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang][value], Constant.BuildingData[value].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData[value].buildingId]);
+              cols += '<col span="' + counts[value] + '">';
+              return Utils.format(headerCell, [Constant.LanguageData[lang][value], Constant.BuildingData[value].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData[value].buildingId]);
             }
-          });
-          if (cols !== '') {
-            colgroup += '<colgroup>' + cols + '</colgroup>';
-          }
-        }
+            return '';
+          }).join('');
+          if (cols !== '') colgroup += '<colgroup>' + cols + '</colgroup>';
+          return cells;
+        }).join('');
         return colgroup + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
       }
 
       function getBody() {
-        var body = '';
-        $.each(database.cities, function (cityId, city) {
-          var rowCells = '';
-          for (var category in buildingOrder) {
-            $.each(buildingOrder[category], function (index, value) {
-              if ((value == 'productionBuilding' || value == 'colonyBuilding') && !database.settings.compressedBuildingList.value) return false;
+        return Object.keys(database.cities).map(function (cityId) {
+          var city = database.cities[cityId];
+          var rowCells = Object.keys(buildingOrder).map(function (category) {
+            return buildingOrder[category].map(function (value) {
+              if ((value == 'productionBuilding' || value == 'colonyBuilding') && !database.settings.compressedBuildingList.value) return '';
               var i = 0;
-              while (i < counts[value]) {
+              var parts = '';
+              while (i < (counts[value] || 0)) {
                 var cssClass = '';
                 if (value == 'colonyBuilding') {
                   cssClass = city.isCapital ? Constant.Buildings.PALACE : Constant.Buildings.GOVERNORS_RESIDENCE;
                 } else if (value == 'productionBuilding') {
                   switch (city.getTradeGoodID) {
-                    case 1:
-                      cssClass = Constant.Buildings.WINERY;
-                      break;
-                    case 2:
-                      cssClass = Constant.Buildings.STONEMASON;
-                      break;
-                    case 3:
-                      cssClass = Constant.Buildings.GLASSBLOWER;
-                      break;
-                    case 4:
-                      cssClass = Constant.Buildings.ALCHEMISTS_TOWER;
-                      break;
+                    case 1: cssClass = Constant.Buildings.WINERY; break;
+                    case 2: cssClass = Constant.Buildings.STONEMASON; break;
+                    case 3: cssClass = Constant.Buildings.GLASSBLOWER; break;
+                    case 4: cssClass = Constant.Buildings.ALCHEMISTS_TOWER; break;
+                    default: cssClass = value;
                   }
                 } else {
                   cssClass = value;
                 }
                 cssClass += +i;
-                rowCells += Utils.format(buildingCell, [cssClass]);
+                parts += Utils.format(buildingCell, [cssClass]);
                 i++;
               }
-            });
-          }
-          body += Utils.format(buildingRow, [city.getId, rowCells, city._name]);
-        });
-        return body;
+              return parts;
+            }).join('');
+          }).join('');
+          return Utils.format(buildingRow, [city.getId, rowCells, city._name]);
+        }).join('');
       }
+
+      return Utils.format(table, [getHead(), getBody()]);
     },
     AddIslandCSS: function () {
       if (!(/.*view=island.*/.test(window.document.location)))
@@ -3534,7 +3730,8 @@
       }
     },
     redrawSettings: function () {
-      $('#SettingsTab').html(render.getSettingsTable());
+      var $settingsTab = this._getCachedSelector('$settingsTab');
+      $settingsTab.html(render.getSettingsTable());
       $("#empire_Reset_Button").button({ icons: { primary: "ui-icon-alert" }, text: true });
       $("#empire_Website_Button").button({ icons: { primary: "ui-icon-home" }, text: true });
       $("#empire_Update_Button").button({ icons: { primary: "ui-icon-info" }, text: true });
@@ -3592,57 +3789,57 @@
         var upgradeSuccessCheck;
         var href = this.getAttribute('href');
         if (href !== '#') {
-          var params = $.decodeUrlParam(href);
+        var params = $.decodeUrlParam(href);
           if (params['function'] === "upgradeBuilding") {
             upgradeSuccessCheck = (function upgradeSuccess() {
               var p = params;
-              return function (response) {
+          return function (response) {
                 var len = response.length;
                 var feedback = 0;
                 while (len--) {
                   if (response[len][0] == 'provideFeedback') {
                     feedback = response[len][1][0].type;
-                    break;
-                  }
-                }
+                break;
+              }
+            }
                 if (feedback == 10) { //success
                   render.updateChangesForCityBuilding(p.cityId || ikariam.getCurrentCity, []);
                 }
-                events('ajaxResponse').unsub(upgradeSuccessCheck);
-              };
+            events('ajaxResponse').unsub(upgradeSuccessCheck);
+          };
             })();
           }
-          events('ajaxResponse').sub(upgradeSuccessCheck);
+        events('ajaxResponse').sub(upgradeSuccessCheck);
         }
       });
       render.mainContentBox.on('click', 'td.city_name span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var classes = target.parents('td').attr('class');
-        var params = { cityId: city.getId };
-        if (!city.isCurrentCity) {
-          $("#js_cityIdOnChange").val(city.getId);
-          if (unsafeWindow.ikariam.templateView) {
-            if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
-              params.templateView = unsafeWindow.ikariam.templateView.id;
-              if (ikariam.viewIsCity) {
-                params.islandId = city.getIslandID;
-                params.view = unsafeWindow.ikariam.templateView.id;
-                params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
-              } else {
-                params.currentIslandId = ikariam.getCurrentCity.getIslandID;
+          var params = { cityId: city.getId };
+          if (!city.isCurrentCity) {
+            $("#js_cityIdOnChange").val(city.getId);
+            if (unsafeWindow.ikariam.templateView) {
+              if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
+                params.templateView = unsafeWindow.ikariam.templateView.id;
+                if (ikariam.viewIsCity) {
+                  params.islandId = city.getIslandID;
+                  params.view = unsafeWindow.ikariam.templateView.id;
+                  params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
+                } else {
+                  params.currentIslandId = ikariam.getCurrentCity.getIslandID;
+                }
               }
             }
+            ikariam.loadUrl(true, ikariam.mainView, params);
           }
-          ikariam.loadUrl(true, ikariam.mainView, params);
-        }
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.transport', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('td').parents('tr').attr('id').split('_').pop());
         if (!city.isCurrentCity && ikariam.getCurrentCity) {
-          ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
-        }
+            ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
+          }
         return false;
       }).on('click', 'td.empireactions div[class*=deployment]', function (event) {
         var target = $(event.target);
@@ -3652,10 +3849,10 @@
           return false;
         }
         var params = {
-          cityId: ikariam.CurrentCityId,
-          view: 'deployment',
-          deploymentType: type,
-          destinationCityId: city.getId
+            cityId: ikariam.CurrentCityId,
+            view: 'deployment',
+            deploymentType: type,
+            destinationCityId: city.getId
         };
         ikariam.loadUrl(true, null, params);
       });
@@ -3668,7 +3865,7 @@
           view: 'worldmap_iso'
         };
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.island', function (event) {
         var target = $(event.target);
         var className = target.parents('td').attr('class').split(' ').pop();
@@ -3678,7 +3875,7 @@
           view: 'island'
         };
         ikariam.loadUrl(true, null, params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.city', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3687,7 +3884,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.population_happiness', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3696,7 +3893,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.research span', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3705,7 +3902,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.barracks', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3714,7 +3911,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.shipyard', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3744,20 +3941,20 @@
         var params = {
           cityId: city.getId
         };
-        if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
-          params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
-          params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          params.islandId = city.getIslandID;
-        } else if (ikariam.viewIsIsland) {
-          params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+          if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
+            params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
+            params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+            params.islandId = city.getIslandID;
+          } else if (ikariam.viewIsIsland) {
+            params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
-        ikariam.loadUrl(true, ikariam.mainView, params);
-        render.AddIslandCSS();
-        return false;
+          ikariam.loadUrl(true, ikariam.mainView, params);
+          render.AddIslandCSS();
+          return false;
       }).on('click', 'td.empireactions div.islandgood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3772,13 +3969,13 @@
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
           if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.islandwood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3792,24 +3989,24 @@
           params.islandId = city.getIslandID;
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-        return false;
+          return false;
       });
       $('#empire_Tabs').on('click', 'td.building span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var className = target.parents('td').attr('class').split(' ').pop();
-        var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
-        var params = building.getUrlParams;
-        if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        ikariam.loadUrl(true, 'city', params);
-        return false;
+          var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
+          var params = building.getUrlParams;
+          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          ikariam.loadUrl(true, 'city', params);
+          return false;
       });
     },
 
@@ -4047,57 +4244,93 @@
     return ret;
   }
   render.LoadCSS = function () {
-    //Main Css
-    GM_addStyle('/* Global board styles */\n #js_GlobalMenu_wood, #js_GlobalMenu_wine, #js_GlobalMenu_marble, #js_GlobalMenu_crystal, #js_GlobalMenu_sulfur {font-size:95%; position:absolute; top:0px; right:5px}\n span.resourceProduction {font-size:85%;position:absolute;right:5px; padding-top: 13px}\n #empireBoard .clickable {\n    color: #542c0f;\n    font-weight: 600; }\n#empireBoard .clickable:hover, #empireBoard .clickbar:hover {\n    cursor: pointer;\n    text-decoration: underline; }\n#empireBoard .Bold, #empireBoard .Red, #empireBoard .Blue, #empireBoard .Green {\n    font-weight: normal; }\n#empireBoard .Green {\n    color: green !important; }\n#empireBoard .Red {\n    color: red !important; }\n#empireBoard .Blue {\n    color: blue !important; }\n#empireBoard .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard .safeImage {\n    background-image: url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAcAAAAJCAYAAAD+WDajAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAEFJREFUeNpi/P//PwMIhOrzQhhAsPriZ0YQzYQugcxnQhaE6YABxhA9HhRdyICJAQ/AayzxOtFdzYRuFLIVAAEGANwqFwuukYKqAAAAAElFTkSuQmCC");\n    background-size: auto auto !important; }\n#empireBoard .transportImage {\n    background-image: url(/cdn/all/both/actions/transport.jpg); }\n#empireBoard .tradeImage {\n    background-image: url(/cdn/all/both/actions/trade.jpg); }\n#empireBoard .plunderImage {\n    background-image: url(/cdn/all/both/actions/plunder.jpg); }\n#empireBoard .merchantImage {\n    background-image: url(/cdn/all/both/minimized/merchantNavy.png);\n    background-position: 0 -5px; }\n#empireBoard .woodImage {\n    background-image: url(/cdn/all/both/resources/icon_wood.png);}\n#empireBoard .wineImage {\n    background-image: url(/cdn/all/both/resources/icon_wine.png); }\n#empireBoard .marbleImage {\n    background-image: url(/cdn/all/both/resources/icon_marble.png); }\n#empireBoard .sulfurImage {\n    background-image: url(/cdn/all/both/resources/icon_sulfur.png); }\n#empireBoard .goldImage {\n    background-image: url(/cdn/all/both/resources/icon_gold.png); }\n#empireBoard .glassImage {\n    background-image: url(/cdn/all/both/resources/icon_glass.png); }\n#empireBoard .sawMillImage {\n    background-image: url(/cdn/all/both/characters/y100_worker_wood_faceleft.png); }\n#empireBoard .mineImage {\n    background-image: url(/cdn/all/both/characters/y100_worker_tradegood_faceleft.png); }\n#empireBoard .researchImage {\n    background-image: url(/cdn/all/both/layout/bulb-on.png); }\n#empireBoard .populationImage {\n    background-image: url(/cdn/all/both/resources/icon_population.png); }\n#empireBoard .goldImage {\n    background-image: url(/cdn/all/both/resources/icon_gold.png); }\n#empireBoard .expensesImage {\n    background-image: url(/cdn/all/both/resources/icon_upkeep.png); }\n#empireBoard .happyImage {\n    background-image: url(/cdn/all/both/smilies/happy.png); }\n#empireBoard .actionpointImage {\n    background-image: url(/cdn/all/both/resources/icon_actionpoints.png); }\n#empireBoard .growthImage {\n    background-image: url(/cdn/all/both/icons/growth_positive.png); }\n#empireBoard .scientistImage {\n    background-image: url(/cdn/all/both/characters/40h/scientist_r.png); }\n#empireBoard .priestImage {\n    background-image: url(/cdn/all/both/characters/40h/templer_r.png); }\n#empireBoard .citizenImage {\n    background-image: url(/cdn/all/both/characters/40h/citizen_r.png); }\n#empireBoard .cityIcon {\n    background-image: url(/cdn/all/both/icons/city_30x30.png); }\n#empireBoard .governmentIcon {\n    background-image: url(/cdn/all/both/government/zepter_20.png); }\n#empireBoard .researchIcon {\n    background-image: url(/cdn/all/both/icons/researchbonus_30x30.png); }\n#empireBoard .tavernIcon {\n    background-image: url(/cdn/all/both/buildings/tavern_30x30.png); }\n#empireBoard .culturalIcon {\n    background-image: url(/cdn/all/both/interface/icon_message_write.png); }\n#empireBoard .museumIcon {\n    background-image: url(/cdn/all/both/buildings/museum_30x30.png); }\n#empireBoard .incomeIcon {\n    background-image: url(/cdn/all/both/icons/income_positive.png); }\n#empireBoard .crownIcon {\n    background-image: url(/cdn/all/both/layout/crown.png); }\n#empireBoard .corruptionIcon {\n    background-image: url(/cdn/all/both/icons/corruption_24x24.png); }\n#empireBoard #empireTip {\n    display: none;\n    position: absolute;\n    top: 0;\n    left: 0;\n    z-index: 99999999; }\n#empireBoard #empireTip .icon {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 16px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .icon2 {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: 0;\n    background-color: transparent;\n    background-attachment: scroll;\n    background-size: 24px auto;\n    height: 17px;\n    min-width: 24px;\n    width: 24px; }\n#empireBoard #empireTip .content {\n    background-color: #fae0ae;\n    border: 1px solid #e4b873;\n    position: relative;\n    overflow: hidden;\n    text-align: left;\n    word-wrap: break-word; }\n#empireBoard #empireTip .content table {\n    width: 100%; }\n#empireBoard #empireTip .content table tr.data {\n    background-color:  	#FFFAF0; }\n#empireBoard #empireTip .content table tr.total {\n     background: #E7C680 url(/cdn/all/both/input/button.png) repeat-x scroll 0 0; }\n#empireBoard #empireTip .content table td {\n    padding: 2px;\n    height: auto !important;\n    text-align: right; }\n#empireBoard #empireTip .content table th {\n    padding: 2px;\n    height: auto !important;\n    text-align: center;\n    font-weight: bold;  background: #F8E7B3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table tbody td {\n background-color: #FFFAF0;}\n#empireBoard #empireTip .content table tbody td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table tfoot {\n  line-height: 12px !important;  border-top: 3px solid #fdf7dd; }\n#empireBoard #empireTip .content table tfoot td:last-child {\n    text-align: left;\n    white-space: nowrap;\n    font-style: italic; }\n#empireBoard #empireTip .content table thead {\n    background: #F8E7B3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom;}\n#empireBoard #empireTip .content table thead th.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table tbody td.lf {\n    border-left: 2px solid #e4b873; }\n#empireBoard #empireTip .content table th.nolf, #empireBoard #empireTip .content table td.nolf {\n    border-left: none; }\n#empireBoard #empireTip .content th.lfdash, #empireBoard #empireTip .content td.lfdash {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empireTip .content table tr.small td {\n    height: auto !important;\n    padding-top: 1px;\n    font-size: 10px !important;\n    line-height: 15px !important; }\n#empireBoard #empire_Tabs table {\n    width: 100% !important;\n    text-align: center;\n    border: 1px solid #ffffff; }\n#empireBoard #empire_Tabs table colgroup {\n    border-left: 1px solid #e4b873; }\n#empireBoard #empire_Tabs table colgroup:first-child {\n    border: none !important; }\n#empireBoard #empire_Tabs table colgroup col {\n    border-left: 1px dashed #e4b873; }\n#empireBoard #empire_Tabs table thead {\n    background: #f8e7b3 url(/cdn/all/both/input/button.png) repeat-x scroll 0 bottom; }\n#empireBoard #empire_Tabs table thead tr {\n    height: 30px; }\n#empireBoard #empire_Tabs table thead tr th {\n    text-align: center;\n    font-weight: bold;\n    \n    overflow: hidden;\n    white-space: nowrap; }\n#empireBoard #ArmyTab table thead tr th.empireactions {\n  min-width: 20px; width: 50px;}\n#empireBoard #empire_Tabs table thead tr th.icon {\n    min-width: 35px;\n    background-size: auto 20px; }\n#empireBoard #empire_Tabs table tbody tr {\n    border-top: 1px solid #e4b873;}\n#empireBoard #empire_Tabs table tbody tr:nth-child(even) {\n    background-color: #FDF1D4; }\n#empireBoard #empire_Tabs table tbody tr.selected {\n    background-color: #FAE3B8;\n    box-shadow: 0 0 1em #CB9B6A inset; }\n#empireBoard #empire_Tabs table tbody tr:hover {\n    background-color: #fff;\n    box-shadow: 0 0 1em #CB9B6A; }\n#empireBoard #empire_Tabs table tbody tr td.city_name {\n    width: 135px;\n    max-width: 135px;\n    padding-left: 3px;\n    text-align: left;\n    padding-right: 14px; }\n#empireBoard #empire_Tabs table tbody tr td.city_name span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    background-size: 15px auto;\n    margin: 0 2px 0 -1px;\n    height: 16px;\n    cursor: move; }\n   #empireBoard #empire_Tabs table tbody tr td.action_points {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.population {\n  text-align: right;}\n#empireBoard #empire_Tabs  table tbody tr td.sawmill {\n    border-left: 1.5px solid #e4b873; }\n  #empireBoard #empire_Tabs table tbody tr td.sawmillprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.mineprog {\n  text-align: right;}\n  #empireBoard #empire_Tabs table tbody tr td.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 17px;\n    min-width: 20px;\n    width: 25px; }\n  #empireBoard #empire_Tabs table tbody tr td.wonder div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: auto 40px;\n    height: 30px;\n    min-width: 30px;\n    width: 30px; }\n	#empireBoard #empire_Tabs table thead tr th.empireactions div {\n    background-clip: border-box;\n    background: transparent repeat scroll 0 0;\n    background-size: 25px auto;\n    height: 20px;\n    min-width: 24px;\n    width: 25px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport {\n    background-image: url("/cdn/all/both/actions/transport.jpg"); float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.worldmap {\n    background-image: url("/cdn/all/both/layout/icon-world.png"); background-size: 16px 16px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.island {\n    background-image: url("/cdn/all/both/layout/icon-island.png"); background-size: 23px 18px; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandwood {\n    background-image: url("/cdn/all/both/resources/icon_wood.png"); background-size: 17px auto; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.islandgood {\n   float: left;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.city {\n    background-image: url("/cdn/all/both/layout/icon-city2.png"); background-size: auto 21px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.member {\n    background-image: url("/cdn/all/both/characters/y100_citizen_faceright.png"); background-size: auto 20px; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.agora {\n    background-image: url("/cdn/all/both/layout/icon-message.png"); background-size: 20px auto; background-repeat: no-repeat; background-position: center center; float: right;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.trading {\n    background-image: url("/cdn/all/both/characters/fleet/40x40/ship_transport_r_40x40.png"); background-size: 22px 19px; background-repeat: no-repeat; background-position: center center; float: left;}\n#empireBoard #empire_Tabs table thead tr th.empireactions div.spio {\n    background-image: url("/cdn/all/both/characters/military/120x100/spy_120x100.png"); background-size: 25px auto; background-position: center center;\n    float: left; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.combat {\n    background-image: url("/cdn/all/both/layout/medallie32x32_gold.png"); background-size: 19px auto; background-repeat: no-repeat;\n    float: right; }\n#empireBoard #empire_Tabs table thead tr th.empireactions div.contracts {\n    background-image: url("/cdn/all/both/museum/icon32_culturalgood.png"); background-size: 22px auto; background-position: center center;  background-repeat: no-repeat;}\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.barracks {\n    background-image: url("/cdn/all/both/buildings/y50/y50_barracks.png"); background-size: 30px auto; background-position: center center; float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.shipyard {\n    background-image: url("/cdn/all/both/buildings/y50/y50_shipyard.png");\n  background-size: 28px auto;   float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy {\n    background-image: url("/cdn/all/both/actions/move_army.jpg");\n    float: left; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet {\n    background-image: url("/cdn/all/both/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_WorldmapTab table tbody tr td.worldmap div.worldmap{ width:829px; height:829px; background-image: url("/cdn/all/both/actions/move_fleet.jpg");\n    float: right; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.transport:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentfleet:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr td.empireactions div.deploymentarmy:hover {\n    background-position: 0 -17px; }\n#empireBoard #empire_Tabs table tbody tr.selected .empireactions div.transport, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentarmy, #empireBoard #empire_Tabs table tbody tr.selected .empireactions div.deploymentfleet{\n    background-position: 0 17px; }\n#empireBoard #empire_Tabs table tbody tr.current .empireactions div.transport {\n    background-position: 0 px; }\n#empireBoard #empire_Tabs table tfoot {\n    background: #fae0ae;\n    background: #e7c680 url(/cdn/all/both/input/button.png) repeat-x scroll 0 0;\n    border-top: 2px solid #e4b873; }\n#empireBoard #empire_Tabs table tfoot tr td {\n    text-align: right;\n     font-weight: bold;}\n#empireBoard #empire_Tabs table tfoot tr #t_research.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr #t_growth.total {\n    text-align: center; }\n#empireBoard #empire_Tabs table tfoot tr td.total span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #empire_Tabs table tfoot tr td#t_sigma, #empireBoard #empire_Tabs table tfoot tr td.sigma {\n    font-weight: 800;\n    text-align: center; }\n#empireBoard #ResTab div.progressbar .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbar .warning {\n    background: #8F1D1A; }\n#empireBoard #ResTab div.progressbar .almostfull {\n    background: #B42521; }\n#empireBoard #ResTab div.progressbar .full {\n    background: #ff0000; }\n#empireBoard #ResTab div.progressbar .fullGold {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarPop .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarPop .warning {\n    background: #CC3300; }\n#empireBoard #ResTab div.progressbarPop .full {\n    background: #185A39; }\n#empireBoard #ResTab div.progressbarSci .normal {\n    background: #73443E; }\n#empireBoard #ResTab div.progressbarSci .full {\n    background: #185A39; }\n#empireBoard #ResTab table tr td.gold_income, #empireBoard #ResTab table tr td.resource, #empireBoard #ResTab table tr td.army:nth-child(even) {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span.incoming, #empireBoard #ResTab table tr td.resource span.incoming {\n  color: blue; }\n#empireBoard #ResTab table tr td.gold_unkeep span, #empireBoard #ResTab table tr td.resource span, #empireBoard #ResTab table tr td.army:nth-child(even) span {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #ResTab table tr td.gold_income span.icon, #empireBoard #ResTab table tr td.resource span.icon, #empireBoard #ResTab table tr td.army:nth-child(even) span.icon {\n    background-repeat: no-repeat;\n    float: left;\n    width: 20px;\n    height: 9px;\n    padding: 5px 4px 0 0; }\n#empireBoard #ResTab table tr td.gold_income span.current, #empireBoard #ResTab table tr td.resource span.current, #empireBoard #ResTab table tr td.army:nth-child(even) span.current {\n    font-size: 1em;\n    display: inline; }\n#empireBoard #ResTab table tr td.population {\n    text-align: right; }\n#empireBoard #ResTab table tr td.gold_income span:nth-child(2), #empireBoard #ResTab table tr td.population span:nth-child(2) {\n    line-height: 1em;\n    height: 1em;\n    font-size: 0.8em;\n    display: block; }\n#empireBoard #BuildTab table tbody tr td {\n    background-clip: border-box;\n    background-repeat: no-repeat;\n    background-position: center;\n    background-color: transparent;\n    background-size: auto 20px; }\n#empireBoard #BuildTab table tbody tr td span.maxLevel {\n    color: rgba(84, 44, 15, 0.3); }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon {\n    color: #4169e1;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradableSoon:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgradable {\n    color: green;\n    font-style: italic; }\n#empireBoard #BuildTab table tbody tr td span.upgradable:after {\n    content: "+"; }\n#empireBoard #BuildTab table tbody tr td span.upgrading {\n    background: url("//cdn/all/both/icons/arrow_upgrade.png") no-repeat scroll 1px 3px transparent;\n    border-radius: 5px 5px 5px 5px;\n    box-shadow: 0 0 2px rgba(0, 0, 0, 0.8);\n    display: inline-block;\n    padding: 2px 5px 1px 20px;\n    margin: 2px; }\n#empireBoard #ArmyTab table colgroup col:nth-child(even) {\n    border-left: none; }\n#empireBoard #SettingsTab .options, #empireBoard #HelpTab .options {\n    float: left;\n    padding: 10px; }\n#empireBoard #SettingsTab .options span.categories, #empireBoard #HelpTab .options span.categories {\n    margin-left: -3px;\n    font-weight: 500; }\n#empireBoard #SettingsTab .options span.categories:not(:first-child), #empireBoard #HelpTab .options span.categories:not(:first-child) {\n    margin-top: 5px; }\n#empireBoard #SettingsTab .options span:not(.clickable), #empireBoard #HelpTab .options span:not(.clickable) {\n    display: block; }\n#empireBoard #SettingsTab .options span label, #empireBoard #HelpTab .options span label {\n    vertical-align: top;\n    padding-left: 5px; }\n#empireBoard #SettingsTab .buttons, #empireBoard #HelpTab .buttons {\n    clear: left;\n    padding: 3px; }\n#empireBoard #SettingsTab .buttons button, #empireBoard #HelpTab .buttons button {\n    margin-left: 3px; }\n\n.toast, .toastAlert {\n    display: none;\n    position: fixed;\n    z-index: 99999;\n    width: 100%;\n    text-align: center;\n    bottom: 5em; }\n\n.toast .message, .toastAlert .message {\n    display: inline-block;\n    color: #4C3000;\n    padding: 5px;\n    border-radius: 5px;\n    box-shadow: 3px 0px 15px 0 #542C0F;\n    -webkit-box-shadow: 3px 0px 15px 0 #542C0F;\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 11px;\n    background: #faf3d7;\n    background-image: -webkit-gradient(linear, left top, left bottom, color-stop(0, #faf3d7), color-stop(1, #e1b06d)); }\n\ndiv.prog:after {\n    -webkit-animation: move 2s linear infinite;\n    -moz-animation: move 2s linear infinite; }\n\n.prog {\n    display: block;\n    width: 100%;\n    height: 100%;\n    background: #fcf938 -moz-linear-gradient(center bottom, #fcf938 37%, #fcf938 69%);\n    position: relative;\n    overflow: hidden; }\n.prog:after {\n    content: "";\n    position: absolute;\n    top: 0;\n    left: 0;\n    bottom: 0;\n    right: 0;\n    background: -moz-linear-gradient(-45deg, rgba(10, 10, 10, 0.6) 25%, transparent 25%, transparent 50%, rgba(10, 10, 10, 0.6) 50%, rgba(10, 10, 10, 0.6) 75%, transparent 75%, transparent);\n    z-index: 1;\n    -webkit-background-size: 50px 50px;\n    -moz-background-size: 50px 50px;\n    background-size: 50px 50px;\n    -webkit-animation: move 5s linear infinite;\n    -moz-animation: move 5s linear infinite;\n    overflow: hidden; }\n\n.animate > .prog:after {\n    display: none; }\n\n@-webkit-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n\n@-moz-keyframes move {\n    0% {\n        background-position: 0 0; }\n\n    100% {\n        background-position: 50px 50px; } }\n');
-    if (database.settings.compressedBuildingList.value) GM_addStyle('#empireBoard #BuildTab table tbody tr td.building.forester0:not(:empty) {\n background-image: url(data:image/png;base64,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hNa9c9athM61a8WtjNacWsWca86UWrWUa72UUs6MSrWEUq17UqV7Wox7a5xzUoxrUnNra3NrWntjUmNaUlJKSgAAAIa/w40AAAAhdFJOU///////////////////////////////////////////AJ/B0CEAAAAJcEhZcwAACxIAAAsSAdLdfvwAAAEsSURBVHicXZDNjtswDISHP4ost8Ve9lYYu+//VoGxtwDtJfU6EsnSCdCmJQTw8IkzQ+o7jjozNbn6gr+lj8YRe53t/PY/WSPQZWJ9QneyyiB2QCrW5R8SXnd2Dyo6Pr4/E348IR2lXF6fiJjCWFWCHHLZlj9EbTC7SP6IEVO5K97JrTAckwyAeId+O3IkOYNnmDT6vBWizOf65ZhZ0QQ4KfvPK9eJnDTk4UMGGin2a0MqtW7KdCe5fTib37bWRcYoCGPODMqZGX4ij714wE41Ri8vl01RXPhYlHyvluvAp921saabAS7axXpRMerz1zh8alft2ctgdStpk5PSlfU6HTeeWXse24uapMaIDL+sldrMoJcf4NZIc4/Usq5YPhoGG3H9hOynkkmTbP4beIqL5HGYwHAAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 17px 17px}\n#empireBoard #BuildTab table tbody tr td.building.winegrower0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAYAAAB4d5a9AAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAABQRJREFUOMuV1MuOHFcBxvH/OXWqurqqu6vdM56LZ3wZC5w4G8OCBSAQCCkSEjs2bBBSFlGMxIKd90hIvACWeAUktjwCQjFJhBNMhtie8fSkZ3r6Xvc6dc5hwYaFjcj3AP/f7lO8YcX8BZ7qPFxMP//9p+MPeTb7J23jcyMZcf/GPRbFnLTc8M2b32V3/8EvTVs97m4dvbal3oQ4Y0E6yqJgPJ+xTgvAMtMNx7mmcRW+ryhNhjY1ranelHo9orMrVJiE6fLkrXU9Z1VO0brGU4Lalqz0DOEbnIpZBjOGXkrj8q+GGF2CtT/J8vEHJ/VTTKdE1gLnBNZYdFPTESFeENDQoJ1Gu+arIQAOZz3p235vSCeaUBYtrXaUmcE5h0g0XQFN5jAJtJr/H6mzKSAinIkDf+c0zPbfDuRzgm6FaR1VZslmDnEA/X5Ar7NF38Tf34v2F222+rNzduP3R/8bsbpEeP6Pi+X4D+cnZ+EXH51xpS11CBZBMQe77lBHIVVkSasLzk7/9rNef/jT/tbtx73B4W+yzXTWG+y8HtHVHNXph+V8/L3F+UX49Mkzzk5mrCtBGA8JE0FgHG3XIFSJ2mk4LRd8/I9P2D3o+/f51q9uCRcn/VuP/htSALZZAiK2unq3Xpz/oLw4f3/xfMrkyyV5VXM9HvLO3j7KF1hhSW3Gy3RMXhSEMZioJfVrxuavgjnvHToYJbceZel01uvvoNpq0W/q8kdllv8wnZ+/v766CrPTBek8w5eSuNNh1OshBMSqg5CS5TKnsgIuQOxCnChMBWmz5ovqL8K04j3hBMng8FG6uZypJlv9bjOb/OL5i9Po2dPPOT27gFbwnaO7PDg4YFmWSCkpm5rxZkleN8yKDYO3fAZJRKsrZGCoU0e2dqhww8v6Q6E8+Z7viYvR8P5vVXH16uHl30/47NNjpqsNurZEgU/aVCRxxG6SsCoK5nXDvyaXTLOMOFHc3tlChYa8AuEE0RZIKTCNI+/MuXRPxG69++uoGh4rXaaIquXta9e5k4xY1TWx73OZbfjo7BWDTkimNfM0RbcGTwqGOz7Jnseq0hhjUYCnBEKAaaCtHZldMTHHUccd7KvWWPKmBiEY9npsDQbgHKuy4HhxSVZVaGsZdEMOt0cYYQj2S9pgTZs34AALtgYZgghA55AWFavehEqsUFmRc3w55eJqxXaSsNfr4Xsem7phWZZsioLtfp+v7e1xmAzRXsM8uSTfrDDWISRY45BW4EmwgBeAtQ6DxmJQSsO1KOKlvuLldEpRlgSeR9223EgSpIDr/T5HW1sMOiHnm5qrVxXCaKItiW4N64VjuC/oh5JaO6x1oAVSd5BOobJXOZFQxN0O803KYZIw6vWojUGbluPZlHVecjKf0REeZ4slxD637t4gcHA5zsgmGVHcIg8EnudopcOrQ5LikG4zQk1WCybrDUXdUOmWQmv2g4BICBZ5ThxGSF8hQ8WqLImSLl8/usm9u4coKZisJnySPcepKZ7X0lUS3Vh8EXBNbhOLHurmN45IP3vOnue4di1Gh4JxmaK0wzhLMuryzt277OxsIX0fKSRR3C97w93HUgj6vd2Hnduj7lg8xbhzrKyRQhJ4IUr6CCFQRw++TRh1qPP1fw4SwXxZMXkxI4ljbt4bsXPrwA227/wxCKMngOfgS+EFf0IIBt3ux3eS7Z+7sXl3nBeY3hQhwPdCpJDg4N+FYbSjpEdluAAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 17px 17px}\n#empireBoard #BuildTab table tbody tr td.building.stonemason0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAMAAABPqWaPAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAGBQTFRFAAAA8d/I6N/WzcS26NG27Nq68ezjv7Gotq2fyLqk1s3EqJqRraSWsaSW2sit0c2/pJaIrZ+Rn5GDqJqN49bE39rR7Ojaloh639bIxLqtsZ+R+vXxsaia39HEjX9xsaSaTMajHAAAAAF0Uk5TAEDm2GYAAAAJcEhZcwAAAEgAAABIAEbJaz4AAADqSURBVChTpdDRboMwDAVQcBoTEqgDrkMAk/7/XzZM2tpufdt99NGVZTfNf9OCudhPYBE6138g69GHYeyvf4AAKYYhTL/Mkgf0M08hcnijmxFJZolVIvevlUwisHKc47u0IpT9Skhb7cSntAAnGNxFtdpTEmTyhiTtnlXHsb+8islIaTfzKcrXH/EkCCbt3aLOOVX9llSPSfkA1BLU6aTuHNsWs5cE4gXwXnjbmL86FjA7t66GThnKzMxx2yrcAKXuHIPr/ClLpfqgxh6ShOKkyjG6nO6lLHwe2xz1J55inIYwL+EALqXMNcsD5M0SNKvkKqsAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.glassblowing0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAYAAAB4d5a9AAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAABJxJREFUOBG9wcuKZGcBwPH/dz3n1DlVXdXVPe3ETHomMQaSjYLEUYgv4CZP4VpGwQjZZOvChxDyFBJcBATNQjfiIgbNMEmc7uq6nfv5bjJCgwxMsvP3g/8DwTdw3RYQ8zg1b4cQTKMqTIrkTE4Z+2egttUdvo7ma4Rui9Sm7Jvtz7tm9+s2SH1QkozAWg1jWc7fTYmP+AaaF/DtBill2da7R9vD7v0ntbNHc8EkC3IZiJnUImXvrBYnH3ddPc1mc15E8wLj2CGFfLg97N77y5Wz2zTHFBmZkURheDJpoTr/y0Ttk+8/6XZPfGbzTxIcdXnG/9KuvTlxU/+DPkg7qgxFYiGGKa+qP17dHO0XjTePW4nMFGVISJmAQKsE/x5U2Q37D1y7Cy/Nzbhart+NKX3Ec7Sfuneaev/h08kUo52jCTgx+NLzGyPiaYjJxCiwUqGVJCZwISGFZDvBv652srm5kt9/sNb5ib4/jAPP04Pz+VXrsn8MpRG5RYrERmhzMbXvr0SDjgNSFCgh0BLGEEhSEBP0XcfjL27wfct07zTFRJsQPE8HNXurS40dMcgoUVJQY5icVrUuaBNEEiklIhGXIkSQDrabaw6HIzPpyYUXWRrfPFuflq69aU255paMQp4GlMiNpLAKKUAIGDHsYklnzojSMsXI6CISiUqCpm7Yba4JbsLmOcJkwo3tr/p2/0gIWU7NNbfkFCWNlygSF5Uh15KU+K+QQNkCYwuUtrgUiSnhXGCz3dLUNcUs5/LBJdXFA3pV2rE7vueG+mGYOm7JTPjrLA3ppm5IMbDMNTEmfIj4GBl8ososhVaYFOndwM1+R725QmnNnW/f4+TsLk6XRDsnRm9SnGwKjlvSCv+301x2wnV8frVDi0hhBD4mXEgMPoFULHPNMtcI5/BDQzXLeOXykrOLu3zZeD7bdAwBktQkNFFobslqNv/9+uTkt/fnKe0Oe77at5RWIgU4nxh9oO5HpFLkNsM7h02OV1/5Fm+9dsnd1YIgYNP1NF7Sy4UOMvtxWVala655Ro79oVnl+g+vLnV7nk082R459hMzq4gkfIhMIbDvHTElTnLNd++/zJuv3eflszmnpeW8LMi0YoySYzCia/ePur7/0Tj2PCONLRYIOV/Ol399YynB9zzd1xQ6oUWiGXq0jLTTQDNFLs9P+d7lXc4XM5QUOB+5t8z4zqpi8oLHTeTLLszGwE/L+bKcmg3ST/1PDofN7z7ftw8HNWc+K+nHkWPbU1lJZiTCGJQ1LErLS+uKKCW9S8gkaKeA1ZJ1Zeh85HpM1Mky9Yefjc3+h37qkM45u+/H/NMa/dlYYYqKRVVQT5HCaF6/s+SsynnjbMHr64Jn/rkdeFo7YoRMSVICAeQK+gBfdZpt54suqreL1T2ljbXjIjNTVTfZ3w+JrFqwynMW1rAqDOvS0IWc89wiBXx6M+JCZF1KaufZ947cS0QUrGaa4iA4tp62sKJP5heyH/4k89ni46xaf5iJhNtfMY0Dwzgx+QEjA1oLVoWhMBJSYpo8uRIYJRhcwihBTInBB6wSnGWK09JgZwsm7NxHsfoPqKt+g05SC1UAAAAASUVORK5CYII=);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.alchemist0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABkAAAAUCAMAAABPqWaPAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAGBQTFRFAAAA8d+/9d+W1rZ638Sa8dq29ei69dqD48h60baN9eOf+uzR+uio7NatupZs8d+f+uOR6NGRza1sv5pfrY1oyKRj7Naa//G6/+yftpFa//r1/+yopH9RrYhW2rpx7NGDIqezSAAAAAF0Uk5TAEDm2GYAAAAJcEhZcwAAAEgAAABIAEbJaz4AAAD4SURBVCiRpY/ZcsMwCEUdLQZL3iQZO8RC+v+/jJpMm2mat/IGZw4Xuu6fdVHafAS2BxzsJ9IrcGawf5kfQVllBvOGrPdKTQa1nt82Wr+svQ8xprTRr7Muu3L+uGLiVvPLutz8ovrjvCrizFG26Sf9tjt3nOsKJYkUnTfzrUzVja42gJozVcr5MW+vVKeqrg4JMQqXwvICheoJkUvFJETCTxDGE1N0KxLrClqYRJ7GeASKu6uFOCJUlsRfOX1Qrn1Yr7XExKkAlCwtx/chBB0jroCRmFNbB5R57pYQzDCYHdaHwk0GQMlzZ+00Tda61upE0exmV4CUtztm+xM5HuXJowAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}\n#empireBoard #BuildTab table tbody tr td.building.palace0:not(:empty) {\n    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABIAAAASCAYAAABWzo5XAAAABGdBTUEAALGPC/xhBQAAAAFzUkdCAK7OHOkAAAAgY0hSTQAAeiYAAICEAAD6AAAAgOgAAHUwAADqYAAAOpgAABdwnLpRPAAAAAZiS0dEAP8A/wD/oL2nkwAAAAlwSFlzAAAASAAAAEgARslrPgAAA2BJREFUOBEFwU1rXVUUgOF3rb3P1725yU3TWJWohEJxUJ1aOlBQiujQiQNnIo6c+gsExwqCv8BB/0HFoQNxoKK2tIJtKNUYaz5u7kfuOWefvZbPw4M7n/rRwY9/zufnbw/u4u5yPjt55+jJL48e3r3tR38/OJ7N5u9fXKzicrHg8PHPzM/Pbx49+f23+z994wd//JDPTo8/12ZjjuV/r1ruvhra7mbq2tdy7r/ou9P9jY0Gd3bykL4U93erKk6fffH6xOz8s747fGU6XrPVLDVo+kQWhx+6FLcg3nDr7VhD9lDqZfessaxxxljGh3Z1lrI+kEJ/jfHoA8nHm1EL8ICWLyEHd95zqZ/HR9dwNmmaRF2tqEYVcWMPimdoVwOr0wUXXcBCJPhDtptjoOFiLkx2XiW2s4RUh3jbos0lRhFUM+Rt3LbAJoRYE8uBsHhEoSvq8pjg0KVMu4QYz4giEBgIPiNKopKGGDYgNECJSCQUI4oyoN0B2ClVdKJMGcTAhdSuiQioOJGBJhplFQgFuGTAgICIEDwj7SmpOyYVNbFsEHrcA9kyigACIGgo0FihwRDJOAEn4gQEJ4ihPmBpwIeMqCFqSFAigAiIAAhgCAkk41IAEQccQzAcMHfAUUkEBRHQdQd5ANxx67HUkrPiFgFFUBRDLGPmZAN3MAfLjpARG4iHJ7CbYVOcInV4rsm2jdAQyIgouIKDO5hBGpzVGlJf0vZCEyGC899caLOjVSZURgiBUAZ8GNAwYK503cC6c1Zr6DGiDEgTaXulrJW4u1Ox7hLuznIlSOWU0qG0xGGFlHOMmvVizcnS6NewWQujQiE4rSgSIlruvMxkc8JkLNS1EgslFIbIgHuHWwIMCU4ZYdzAqFY8G4uTGX2XCGVF1MuvM+gYWd4je09OiZg6irKlKnukMnJOWDCq6LQ9LBaZfrai65Vm+hyxHhF3965/N2/Gb3G+pXn9F4MM5LZFfU4rJdovsWTkQdDRCKxlnXaRsMX0yh7TK/uMp1eQ+XK1N3SLj3SYXfXh4qkW+aZz94bqE0S3Qd4AuwQ+x/P35PyYlG89tbR9Oyj36o2tF8qqOhJ3BxDA2y69ebE8/Xpxdv/aOM4QE8ymuAfAwM/I3tGynyY7+99uTLY+tpz/GY8b/geGd+pmTCUDLQAAAABJRU5ErkJggg==);\n    text-shadow: 0px 1px 2px #FFF; background-size: 19px 19px}'); if (database.settings.smallFont.value) GM_addStyle('#empireBoard {font-size:11px}'); if (database.settings.hourlyRess.value) GM_addStyle('span.resourceProduction {display: none;} #js_GlobalMenu_wood, #js_GlobalMenu_wine, #js_GlobalMenu_marble, #js_GlobalMenu_crystal, #js_GlobalMenu_sulfur {position:absolute; top:0px; right:0px}'); if (database.settings.wineOut.value) GM_addStyle('#wineOutTable { display: none;}'); if (database.settings.onIkaLogs.value) addScript('https://ikalogs.ru/js/etc/script.js'); if (database.settings.newsTicker.value) GM_addStyle('#GF_toolbar #mmoNewsticker {visibility: hidden !important;}'); if (database.settings.event.value) GM_addStyle('#eventDiv, #genericPopup{display: none;}\n #redVsBlueInfo, #redVsBlueInfo_c {visibility: hidden !important;}'); if (database.settings.birdSwarm.value) GM_addStyle('.bird_swarm {visibility: hidden !important;}'); if (database.settings.walkers.value) GM_addStyle('#walkers {visibility: hidden !important;}'); if (database.settings.controlCenter.value) GM_addStyle('#js_toggleControlsOn, #mapControls, div.footerleft, div.footerright {display: none;}'); if (database.settings.withoutFable.value) GM_addStyle('#buildUnits li.unit > div > p, div.buildingimg > p, div.buildingDescription > p:nth-child(2), #tavernDesc > p:nth-child(1), .content_left > p:nth-child(3), .ad_banner, #premiumOffers p:first-child {display: none;}\n #buildUnits li.unit > div img {transform: scale(0.7);}\n ul#buildings div.buildinginfo img {transform: scale(0.7);}'); if (isChrome && database.settings.withoutFable.value) GM_addStyle('ul#buildings div.buildinginfo img {-webkit-transform: scale(0.7);}\n #buildUnits li.unit > div img {-webkit-transform: scale(0.8);}'); if (database.settings.ambrosiaPay.value) GM_addStyle('#confirmResourcePremiumBuy, #confirmResourcePremiumBuy_c, #premiumResourceShop, #premiumResourceShop_c, #premiumOffers tr.resourceShop, div.resourceShopButton, #individualOfferBuildingSpeedup, #premium_btn, div.premiumOfferBox.highlightbox.twoCols, div.actionButton:nth-child(3) { display: none;} \n li.order {visibility: hidden !important;} \n #js_viewCityMenu ul.menu_slots li[onclick*="view=premiumResourceShop"] { position:absolute; top:-1000px; left:-1000px;}'); if (database.settings.noPiracy.value) GM_addStyle('#position17, #pirateFortressShip {display: none;}'); if (Constant.Buildings.PIRATE_FORTRESS !== 0) GM_addStyle('#pirateFortressBackground{visibility: hidden !important;}');
-    //jQuery UI CSS
-    GM_addStyle("/*!\n* jQuery UI CSS Framework 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Theming/API\n*/\n\n/* Layout helpers\n----------------------------------*/\n.ui-helper-hidden {\n    display: none;\n}\n\n.ui-helper-hidden-accessible {\n    position: absolute !important;\n    clip: rect(1px, 1px, 1px, 1px);\n    clip: rect(1px, 1px, 1px, 1px);\n}\n\n.ui-helper-reset {\n    margin: 0;\n    padding: 0;\n    border: 0;\n    outline: 0;\n    line-height: 1.3;\n    text-decoration: none;\n    font-size: 100%;\n    list-style: none;\n}\n\n.ui-helper-clearfix:before, .ui-helper-clearfix:after {\n    content: \"\";\n    display: table;\n}\n\n.ui-helper-clearfix:after {\n    clear: both;\n}\n\n.ui-helper-clearfix {\n    zoom: 1;\n}\n\n.ui-helper-zfix {\n    width: 100%;\n    height: 100%;\n    top: 0;\n    left: 0;\n    position: absolute;\n    opacity: 0;\n    filter: Alpha(Opacity = 0);\n}\n\n/* Interaction Cues\n----------------------------------*/\n.ui-state-disabled {\n    cursor: default !important;\n}\n\n/* Icons\n----------------------------------*/\n\n/* states and images */\n.ui-icon {\n    display: block;\n    text-indent: -99999px;\n    overflow: hidden;\n    background-repeat: no-repeat;\n}\n\n/* Misc visuals\n----------------------------------*/\n\n/* Overlays */\n.ui-widget-overlay {\n    position: absolute;\n    top: 0;\n    left: 0;\n    width: 100%;\n    height: 100%;\n}\n\n/*!\n* jQuery UI CSS Framework 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Theming/API\n*\n* To view and modify this theme, visit http://jqueryui.com/themeroller/?ffDefault=Verdana,Arial,sans-serif&fwDefault=bold&fsDefault=1em&cornerRadius=4px&bgColorHeader=F8E7B3&bgTextureHeader=03_highlight_soft.png&bgImgOpacityHeader=75&borderColorHeader=ffffff&fcHeader=542c0f&iconColorHeader=542C0F&bgColorContent=f6ebba&bgTextureContent=01_flat.png&bgImgOpacityContent=75&borderColorContent=eccf8e&fcContent=542c0f&iconColorContent=542c0f&bgColorDefault=eccf8e&bgTextureDefault=02_glass.png&bgImgOpacityDefault=75&borderColorDefault=eccf8e&fcDefault=542c0f&iconColorDefault=542c0f&bgColorHover=f6ebba&bgTextureHover=02_glass.png&bgImgOpacityHover=75&borderColorHover=eccf8e&fcHover=542c0f&iconColorHover=542c0f&bgColorActive=f6ebba&bgTextureActive=02_glass.png&bgImgOpacityActive=65&borderColorActive=eccf8e&fcActive=542c0f&iconColorActive=542c0f&bgColorHighlight=f6ebba&bgTextureHighlight=07_diagonals_medium.png&bgImgOpacityHighlight=100&borderColorHighlight=eccf8e&fcHighlight=542c0f&iconColorHighlight=542c0f&bgColorError=f6ebba&bgTextureError=05_inset_soft.png&bgImgOpacityError=95&borderColorError=cd0a0a&fcError=cd0a0a&iconColorError=cd0a0a&bgColorOverlay=aaaaaa&bgTextureOverlay=07_diagonals_medium.png&bgImgOpacityOverlay=75&opacityOverlay=30&bgColorShadow=aaaaaa&bgTextureShadow=01_flat.png&bgImgOpacityShadow=0&opacityShadow=30&thicknessShadow=8px&offsetTopShadow=-8px&offsetLeftShadow=-8px&cornerRadiusShadow=8px\n*/\n\n/* Component containers\n----------------------------------*/\n.ui-widget {\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 1em;\n}\n\n.ui-widget .ui-widget {\n    font-size: 1em;\n}\n\n.ui-widget input, .ui-widget select, .ui-widget textarea, .ui-widget button {\n    font-family: Arial, Helvetica, sans-serif;\n    font-size: 1em;\n}\n\n.ui-widget-content {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAABkCAYAAAD0ZHJ6AAAAfUlEQVRoge3OMQGAIAAAQaR/Iiq5u0oEhht0+Etw13Ovd/zY/DpwUlAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVBtVtsEYluRKCAAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    color: #542c0f;\n}\n\n.ui-widget-content a {\n    color: #542c0f;\n}\n\n.ui-widget-header {\n    border: 1px solid #ffffff;\n    background: #f8e7b3 url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAAEwK2r2AAAAY0lEQVQYlaWPMQ6DQAwER/v/7+UhQTRH7N00QEESiUAzki17vOb1fEQAR8QDpSaUmhHkYwSAb4LEKD2vAryc3/2JpFC8IDzWfHgg0qcEd47/haT3VEZxbWUKQW89GhFffeEi3kGvSQXcQU8oAAAAAElFTkSuQmCC\") 50% 50% repeat-x;\n    color: #542c0f;\n    font-weight: bold;\n}\n\n.ui-widget-header a {\n    color: #542c0f;\n}\n\n/* Interaction states\n----------------------------------*/\n.ui-state-default, .ui-widget-content .ui-state-default, .ui-widget-header .ui-state-default {\n    border: 1px solid #eccf8e;\n    background: #eccf8e url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAASklEQVQ4je3Puw2EABAD0fGw9F8KFSFqgJTgCPhEFHBCmzxN4sCs8/QToGmaz7JvC5JgMiAnhbEwjoiFPpXUXda1SPyHM03TvHEAd0QJtjgD5PAAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-default a, .ui-state-default a:link, .ui-state-default a:visited {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-state-hover, .ui-widget-content .ui-state-hover, .ui-widget-header .ui-state-hover, .ui-state-focus, .ui-widget-content .ui-state-focus, .ui-widget-header .ui-state-focus {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAAR0lEQVQ4je3PMQrAIABD0Z/o/Y/Wk3RwLBSqg0KXHkBKlkeGv4SrHd0AIYTf8twnBmEkDF5IBTMxlupaM1HB0ht7hzMhhC8GEiwJ5YKag9EAAAAASUVORK5CYII=\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-hover a, .ui-state-hover a:hover {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-state-active, .ui-widget-content .ui-state-active, .ui-widget-header .ui-state-active {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAGQCAYAAABvWArbAAAARklEQVQ4je3PsQnAMBBD0S9l/8kyTFIaDDkXBkMgA5ig5iEdXCHafZYBQgi/5ekXrlmFpQNLxmDMTOv2rrU+kHYYE0L4YgB9ewvfYTVHjwAAAABJRU5ErkJggg==\") 50% 50% repeat-x;\n    font-weight: bold;\n    color: #542c0f;\n}\n\n.ui-state-active a, .ui-state-active a:link, .ui-state-active a:visited {\n    color: #542c0f;\n    text-decoration: none;\n}\n\n.ui-widget :active {\n    outline: none;\n}\n\n/* Interaction Cues\n----------------------------------*/\n.ui-state-highlight, .ui-widget-content .ui-state-highlight, .ui-widget-header .ui-state-highlight {\n    border: 1px solid #eccf8e;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAjElEQVRYhe2UOwqAMBAFx2DlMbz/kSS3MIUIWij4aZ/gK952YZohu0y3zNPGOWur3Kcfxsf7D16c5YBD0FUOoDjLAdeKHeXWVi9BRzk4f9BVDqA4y8HrBt3k0sEveDqo8nRQ5emgytNBlaeDKk8HVZ4OqjwdVHk6qPJ0UOXpoMrTQZWngypPB1Vu38EdG7NcOPXFHAMAAAAASUVORK5CYII=\") 50% 50% repeat;\n    color: #542c0f;\n}\n\n.ui-state-highlight a, .ui-widget-content .ui-state-highlight a, .ui-widget-header .ui-state-highlight a {\n    color: #542c0f;\n}\n\n.ui-state-error, .ui-widget-content .ui-state-error, .ui-widget-header .ui-state-error {\n    border: 1px solid #cd0a0a;\n    background: #f6ebba url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAABkCAYAAABHLFpgAAAASElEQVQYld2PMQ6DUBTDbP/7X4grde/6GACpjN0QS+QkyhC+n20CeI3MQChJJ4GEka7LEtkiRsJF2llw0G02SP5k0oxPOP2P7E3MCpW4kdm7AAAAAElFTkSuQmCC\") 50% bottom repeat-x;\n    color: #cd0a0a;\n}\n\n.ui-state-error a, .ui-widget-content .ui-state-error a, .ui-widget-header .ui-state-error a {\n    color: #cd0a0a;\n}\n\n.ui-state-error-text, .ui-widget-content .ui-state-error-text, .ui-widget-header .ui-state-error-text {\n    color: #cd0a0a;\n}\n\n.ui-priority-primary, .ui-widget-content .ui-priority-primary, .ui-widget-header .ui-priority-primary {\n    font-weight: bold;\n}\n\n.ui-priority-secondary, .ui-widget-content .ui-priority-secondary, .ui-widget-header .ui-priority-secondary {\n    opacity: .7;\n    filter: Alpha(Opacity = 70);\n    font-weight: normal;\n}\n\n.ui-state-disabled, .ui-widget-content .ui-state-disabled, .ui-widget-header .ui-state-disabled {\n    opacity: .35;\n    filter: Alpha(Opacity = 35);\n    background-image: none;\n}\n\n/* Icons\n----------------------------------*/\n\n/* states and images */\n.ui-icon {\n    width: 16px;\n    height: 16px;\n}\n\n.ui-state-error .ui-icon, .ui-state-error-text .ui-icon {\n    background-image: url(\"data:image/png;base64,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\");\n}\n\n.ui-icon, .ui-widget-content .ui-icon, .ui-widget-header .ui-icon, .ui-state-default .ui-icon, .ui-state-hover .ui-icon, .ui-state-focus .ui-icon, .ui-state-active .ui-icon, .ui-state-highlight .ui-icon {\n    background-image: url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAADwCAMAAAGvTnpvAAAA7VBMVEVULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxULgxwjo40AAAATnRSTlMAGBAyBAhQv4OZLiJUcEBmYBoSzQwgPBZCSEoeWiYwUiyFNIeBw2rJz8c4RBy9uXyrtaWNqa2zKP2fJO8KBgKPo2KVoa9s351GPm5+kWho0kj9AAATX0lEQVR4nO1dC2PbthEGyUpaqJii/JgbZ3bTLNmyJns/Oi1bM7vp0q7r/f+fM+JxwOEAkNTTSoxPlqHD83AE7gAQBIUYBHSfQv0XnbsJgH02A3g5ibVzDFNtlkPI1VjIuOUa8eMclOLS1uRSPBETURnOrkbmID9T9fuPyu+cSGYYKya5efeddN9TRS1H8eD4kDjrPutBpptt2apkiqX57A4gfloj7ua9AXMQ3dWvNs8n7NCwZk6bqYSg1CgNsaCBHDAluMQjcihEWBNYSxamUYNMs15KmwMUKhm0S5UBwMQFjcqxelSYskHBtLC26X7/eWQtVB1MaWXzF1OrUyhLgOrFiBwalDwg6+tigfzbnNbM40UlTrrO3clTftcuX7jyY9gkv81RVWI9K0OxNa8Hruw+EFctu6xaqDhCGkjQ2hyMitiXKyR+7xSqx6u6AitlpI3wrBj5OSo5xv8ZShoq5VZE+p/hb/OVzuPHyHGXQLoug9b4af/OzArAqtlvq8PidqZSflOYigVIpTZ33192wQ1jHVXLgjWWeZdAfhn3UteqH43NI9EGSjns7CJ//g8h6o6++UrLBTrOZJUkhy4NxDNAblZld53kJZl34z4jE5cB0HbA5RHnzg9Txud28wwG4aS1pwzKH7t/IyxlEvW2XVQLcf0vyeCWfL9j39vk95iA1alinhtmcHDr34ti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\");\n}\n\n/* positioning */\n.ui-icon-carat-1-n {\n    background-position: 0 0;\n}\n\n.ui-icon-carat-1-ne {\n    background-position: -16px 0;\n}\n\n.ui-icon-carat-1-e {\n    background-position: -32px 0;\n}\n\n.ui-icon-carat-1-se {\n    background-position: -48px 0;\n}\n\n.ui-icon-carat-1-s {\n    background-position: -64px 0;\n}\n\n.ui-icon-carat-1-sw {\n    background-position: -80px 0;\n}\n\n.ui-icon-carat-1-w {\n    background-position: -96px 0;\n}\n\n.ui-icon-carat-1-nw {\n    background-position: -112px 0;\n}\n\n.ui-icon-carat-2-n-s {\n    background-position: -128px 0;\n}\n\n.ui-icon-carat-2-e-w {\n    background-position: -144px 0;\n}\n\n.ui-icon-triangle-1-n {\n    background-position: 0 -16px;\n}\n\n.ui-icon-triangle-1-ne {\n    background-position: -16px -16px;\n}\n\n.ui-icon-triangle-1-e {\n    background-position: -32px -16px;\n}\n\n.ui-icon-triangle-1-se {\n    background-position: -48px -16px;\n}\n\n.ui-icon-triangle-1-s {\n    background-position: -64px -16px;\n}\n\n.ui-icon-triangle-1-sw {\n    background-position: -80px -16px;\n}\n\n.ui-icon-triangle-1-w {\n    background-position: -96px -16px;\n}\n\n.ui-icon-triangle-1-nw {\n    background-position: -112px -16px;\n}\n\n.ui-icon-triangle-2-n-s {\n    background-position: -128px -16px;\n}\n\n.ui-icon-triangle-2-e-w {\n    background-position: -144px -16px;\n}\n\n.ui-icon-arrow-1-n {\n    background-position: 0 -32px;\n}\n\n.ui-icon-arrow-1-ne {\n    background-position: -16px -32px;\n}\n\n.ui-icon-arrow-1-e {\n    background-position: -32px -32px;\n}\n\n.ui-icon-arrow-1-se {\n    background-position: -48px -32px;\n}\n\n.ui-icon-arrow-1-s {\n    background-position: -64px -32px;\n}\n\n.ui-icon-arrow-1-sw {\n    background-position: -80px -32px;\n}\n\n.ui-icon-arrow-1-w {\n    background-position: -96px -32px;\n}\n\n.ui-icon-arrow-1-nw {\n    background-position: -112px -32px;\n}\n\n.ui-icon-arrow-2-n-s {\n    background-position: -128px -32px;\n}\n\n.ui-icon-arrow-2-ne-sw {\n    background-position: -144px -32px;\n}\n\n.ui-icon-arrow-2-e-w {\n    background-position: -160px -32px;\n}\n\n.ui-icon-arrow-2-se-nw {\n    background-position: -176px -32px;\n}\n\n.ui-icon-arrowstop-1-n {\n    background-position: -192px -32px;\n}\n\n.ui-icon-arrowstop-1-e {\n    background-position: -208px -32px;\n}\n\n.ui-icon-arrowstop-1-s {\n    background-position: -224px -32px;\n}\n\n.ui-icon-arrowstop-1-w {\n    background-position: -240px -32px;\n}\n\n.ui-icon-arrowthick-1-n {\n    background-position: 0 -48px;\n}\n\n.ui-icon-arrowthick-1-ne {\n    background-position: -16px -48px;\n}\n\n.ui-icon-arrowthick-1-e {\n    background-position: -32px -48px;\n}\n\n.ui-icon-arrowthick-1-se {\n    background-position: -48px -48px;\n}\n\n.ui-icon-arrowthick-1-s {\n    background-position: -64px -48px;\n}\n\n.ui-icon-arrowthick-1-sw {\n    background-position: -80px -48px;\n}\n\n.ui-icon-arrowthick-1-w {\n    background-position: -96px -48px;\n}\n\n.ui-icon-arrowthick-1-nw {\n    background-position: -112px -48px;\n}\n\n.ui-icon-arrowthick-2-n-s {\n    background-position: -128px -48px;\n}\n\n.ui-icon-arrowthick-2-ne-sw {\n    background-position: -144px -48px;\n}\n\n.ui-icon-arrowthick-2-e-w {\n    background-position: -160px -48px;\n}\n\n.ui-icon-arrowthick-2-se-nw {\n    background-position: -176px -48px;\n}\n\n.ui-icon-arrowthickstop-1-n {\n    background-position: -192px -48px;\n}\n\n.ui-icon-arrowthickstop-1-e {\n    background-position: -208px -48px;\n}\n\n.ui-icon-arrowthickstop-1-s {\n    background-position: -224px -48px;\n}\n\n.ui-icon-arrowthickstop-1-w {\n    background-position: -240px -48px;\n}\n\n.ui-icon-arrowreturnthick-1-w {\n    background-position: 0 -64px;\n}\n\n.ui-icon-arrowreturnthick-1-n {\n    background-position: -16px -64px;\n}\n\n.ui-icon-arrowreturnthick-1-e {\n    background-position: -32px -64px;\n}\n\n.ui-icon-arrowreturnthick-1-s {\n    background-position: -48px -64px;\n}\n\n.ui-icon-arrowreturn-1-w {\n    background-position: -64px -64px;\n}\n\n.ui-icon-arrowreturn-1-n {\n    background-position: -80px -64px;\n}\n\n.ui-icon-arrowreturn-1-e {\n    background-position: -96px -64px;\n}\n\n.ui-icon-arrowreturn-1-s {\n    background-position: -112px -64px;\n}\n\n.ui-icon-arrowrefresh-1-w {\n    background-position: -128px -64px;\n}\n\n.ui-icon-arrowrefresh-1-n {\n    background-position: -144px -64px;\n}\n\n.ui-icon-arrowrefresh-1-e {\n    background-position: -160px -64px;\n}\n\n.ui-icon-arrowrefresh-1-s {\n    background-position: -176px -64px;\n}\n\n.ui-icon-arrow-4 {\n    background-position: 0 -80px;\n}\n\n.ui-icon-arrow-4-diag {\n    background-position: -16px -80px;\n}\n\n.ui-icon-extlink {\n    background-position: -32px -80px;\n}\n\n.ui-icon-newwin {\n    background-position: -48px -80px;\n}\n\n.ui-icon-refresh {\n    background-position: -64px -80px;\n}\n\n.ui-icon-shuffle {\n    background-position: -80px -80px;\n}\n\n.ui-icon-transfer-e-w {\n    background-position: -96px -80px;\n}\n\n.ui-icon-transferthick-e-w {\n    background-position: -112px -80px;\n}\n\n.ui-icon-folder-collapsed {\n    background-position: 0 -96px;\n}\n\n.ui-icon-folder-open {\n    background-position: -16px -96px;\n}\n\n.ui-icon-document {\n    background-position: -32px -96px;\n}\n\n.ui-icon-document-b {\n    background-position: -48px -96px;\n}\n\n.ui-icon-note {\n    background-position: -64px -96px;\n}\n\n.ui-icon-mail-closed {\n    background-position: -80px -96px;\n}\n\n.ui-icon-mail-open {\n    background-position: -96px -96px;\n}\n\n.ui-icon-suitcase {\n    background-position: -112px -96px;\n}\n\n.ui-icon-comment {\n    background-position: -128px -96px;\n}\n\n.ui-icon-person {\n    background-position: -144px -96px;\n}\n\n.ui-icon-print {\n    background-position: -160px -96px;\n}\n\n.ui-icon-trash {\n    background-position: -176px -96px;\n}\n\n.ui-icon-locked {\n    background-position: -192px -96px;\n}\n\n.ui-icon-unlocked {\n    background-position: -208px -96px;\n}\n\n.ui-icon-bookmark {\n    background-position: -224px -96px;\n}\n\n.ui-icon-tag {\n    background-position: -240px -96px;\n}\n\n.ui-icon-home {\n    background-position: 0 -112px;\n}\n\n.ui-icon-flag {\n    background-position: -16px -112px;\n}\n\n.ui-icon-calendar {\n    background-position: -32px -112px;\n}\n\n.ui-icon-cart {\n    background-position: -48px -112px;\n}\n\n.ui-icon-pencil {\n    background-position: -64px -112px;\n}\n\n.ui-icon-clock {\n    background-position: -80px -112px;\n}\n\n.ui-icon-disk {\n    background-position: -96px -112px;\n}\n\n.ui-icon-calculator {\n    background-position: -112px -112px;\n}\n\n.ui-icon-zoomin {\n    background-position: -128px -112px;\n}\n\n.ui-icon-zoomout {\n    background-position: -144px -112px;\n}\n\n.ui-icon-search {\n    background-position: -160px -112px;\n}\n\n.ui-icon-wrench {\n    background-position: -176px -112px;\n}\n\n.ui-icon-gear {\n    background-position: -192px -112px;\n}\n\n.ui-icon-heart {\n    background-position: -208px -112px;\n}\n\n.ui-icon-star {\n    background-position: -224px -112px;\n}\n\n.ui-icon-link {\n    background-position: -240px -112px;\n}\n\n.ui-icon-cancel {\n    background-position: 0 -128px;\n}\n\n.ui-icon-plus {\n    background-position: -16px -128px;\n}\n\n.ui-icon-plusthick {\n    background-position: -32px -128px;\n}\n\n.ui-icon-minus {\n    background-position: -48px -128px;\n}\n\n.ui-icon-minusthick {\n    background-position: -64px -128px;\n}\n\n.ui-icon-close {\n    background-position: -80px -128px;\n}\n\n.ui-icon-closethick {\n    background-position: -96px -128px;\n}\n\n.ui-icon-key {\n    background-position: -112px -128px;\n}\n\n.ui-icon-lightbulb {\n    background-position: -128px -128px;\n}\n\n.ui-icon-scissors {\n    background-position: -144px -128px;\n}\n\n.ui-icon-clipboard {\n    background-position: -160px -128px;\n}\n\n.ui-icon-copy {\n    background-position: -176px -128px;\n}\n\n.ui-icon-contact {\n    background-position: -192px -128px;\n}\n\n.ui-icon-image {\n    background-position: -208px -128px;\n}\n\n.ui-icon-video {\n    background-position: -224px -128px;\n}\n\n.ui-icon-script {\n    background-position: -240px -128px;\n}\n\n.ui-icon-alert {\n    background-position: 0 -144px;\n}\n\n.ui-icon-info {\n    background-position: -16px -144px;\n}\n\n.ui-icon-notice {\n    background-position: -32px -144px;\n}\n\n.ui-icon-help {\n    background-position: -48px -144px;\n}\n\n.ui-icon-check {\n    background-position: -64px -144px;\n}\n\n.ui-icon-bullet {\n    background-position: -80px -144px;\n}\n\n.ui-icon-radio-off {\n    background-position: -96px -144px;\n}\n\n.ui-icon-radio-on {\n    background-position: -112px -144px;\n}\n\n.ui-icon-pin-w {\n    background-position: -128px -144px;\n}\n\n.ui-icon-pin-s {\n    background-position: -144px -144px;\n}\n\n.ui-icon-play {\n    background-position: 0 -160px;\n}\n\n.ui-icon-pause {\n    background-position: -16px -160px;\n}\n\n.ui-icon-seek-next {\n    background-position: -32px -160px;\n}\n\n.ui-icon-seek-prev {\n    background-position: -48px -160px;\n}\n\n.ui-icon-seek-end {\n    background-position: -64px -160px;\n}\n\n.ui-icon-seek-start {\n    background-position: -80px -160px;\n}\n\n/* ui-icon-seek-first is deprecated, use ui-icon-seek-start instead */\n.ui-icon-seek-first {\n    background-position: -80px -160px;\n}\n\n.ui-icon-stop {\n    background-position: -96px -160px;\n}\n\n.ui-icon-eject {\n    background-position: -112px -160px;\n}\n\n.ui-icon-volume-off {\n    background-position: -128px -160px;\n}\n\n.ui-icon-volume-on {\n    background-position: -144px -160px;\n}\n\n.ui-icon-power {\n    background-position: 0 -176px;\n}\n\n.ui-icon-signal-diag {\n    background-position: -16px -176px;\n}\n\n.ui-icon-signal {\n    background-position: -32px -176px;\n}\n\n.ui-icon-battery-0 {\n    background-position: -48px -176px;\n}\n\n.ui-icon-battery-1 {\n    background-position: -64px -176px;\n}\n\n.ui-icon-battery-2 {\n    background-position: -80px -176px;\n}\n\n.ui-icon-battery-3 {\n    background-position: -96px -176px;\n}\n\n.ui-icon-circle-plus {\n    background-position: 0 -192px;\n}\n\n.ui-icon-circle-minus {\n    background-position: -16px -192px;\n}\n\n.ui-icon-circle-close {\n    background-position: -32px -192px;\n}\n\n.ui-icon-circle-triangle-e {\n    background-position: -48px -192px;\n}\n\n.ui-icon-circle-triangle-s {\n    background-position: -64px -192px;\n}\n\n.ui-icon-circle-triangle-w {\n    background-position: -80px -192px;\n}\n\n.ui-icon-circle-triangle-n {\n    background-position: -96px -192px;\n}\n\n.ui-icon-circle-arrow-e {\n    background-position: -112px -192px;\n}\n\n.ui-icon-circle-arrow-s {\n    background-position: -128px -192px;\n}\n\n.ui-icon-circle-arrow-w {\n    background-position: -144px -192px;\n}\n\n.ui-icon-circle-arrow-n {\n    background-position: -160px -192px;\n}\n\n.ui-icon-circle-zoomin {\n    background-position: -176px -192px;\n}\n\n.ui-icon-circle-zoomout {\n    background-position: -192px -192px;\n}\n\n.ui-icon-circle-check {\n    background-position: -208px -192px;\n}\n\n.ui-icon-circlesmall-plus {\n    background-position: 0 -208px;\n}\n\n.ui-icon-circlesmall-minus {\n    background-position: -16px -208px;\n}\n\n.ui-icon-circlesmall-close {\n    background-position: -32px -208px;\n}\n\n.ui-icon-squaresmall-plus {\n    background-position: -48px -208px;\n}\n\n.ui-icon-squaresmall-minus {\n    background-position: -64px -208px;\n}\n\n.ui-icon-squaresmall-close {\n    background-position: -80px -208px;\n}\n\n.ui-icon-grip-dotted-vertical {\n    background-position: 0 -224px;\n}\n\n.ui-icon-grip-dotted-horizontal {\n    background-position: -16px -224px;\n}\n\n.ui-icon-grip-solid-vertical {\n    background-position: -32px -224px;\n}\n\n.ui-icon-grip-solid-horizontal {\n    background-position: -48px -224px;\n}\n\n.ui-icon-gripsmall-diagonal-se {\n    background-position: -64px -224px;\n}\n\n.ui-icon-grip-diagonal-se {\n    background-position: -80px -224px;\n}\n\n/* Misc visuals\n----------------------------------*/\n\n/* Corner radius */\n.ui-corner-all, .ui-corner-top, .ui-corner-left, .ui-corner-tl {\n    -moz-border-radius-topleft: 0px;\n    -webkit-border-top-left-radius: 0px;\n    -khtml-border-top-left-radius: 0px;\n    border-top-left-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-top, .ui-corner-right, .ui-corner-tr {\n    -moz-border-radius-topright: 0px;\n    -webkit-border-top-right-radius: 0px;\n    -khtml-border-top-right-radius: 0px;\n    border-top-right-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-bottom, .ui-corner-left, .ui-corner-bl {\n    -moz-border-radius-bottomleft: 0px;\n    -webkit-border-bottom-left-radius: 0px;\n    -khtml-border-bottom-left-radius: 0px;\n    border-bottom-left-radius: 0px;\n}\n\n.ui-corner-all, .ui-corner-bottom, .ui-corner-right, .ui-corner-br {\n    -moz-border-radius-bottomright: 0px;\n    -webkit-border-bottom-right-radius: 0px;\n    -khtml-border-bottom-right-radius: 0px;\n    border-bottom-right-radius: 0px;\n}\n\n/* Overlays */\n.ui-widget-overlay {\n    background: #aaaaaa url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAYAAACM/rhtAAAAh0lEQVRYhe2UsQ3AIAwEL0zC/qMwhTdJiiCRpH2kfPHu0DUnbN0xxjiZU1U8p/f+ev/Bm7MccAu6ygE0ZzlgrdhRrqqWoKMczB90lQNoznLwuUE3uXRwB08HVZ4OqjwdVHk6qPJ0UOXpoMrTQZWngypPB1WeDqo8HVR5OqjydFDl6aDK7Tt4AWXCW8vnTP6PAAAAAElFTkSuQmCC\") 50% 50% repeat;\n    opacity: .30;\n    filter: Alpha(Opacity = 30);\n}\n\n.ui-widget-shadow {\n    margin: -8px 0 0 -8px;\n    padding: 8px;\n    background: #aaaaaa url(\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACgAAABkCAYAAAD0ZHJ6AAAAe0lEQVRoge3OMQHAIBAAMcC/kjdZJHTI0A4XBdkz86wfO18H3hRUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUBVVBVVAVVAVVQVVQFVQFVUFVUBVUF8O8A8WdY6opAAAAAElFTkSuQmCC\") 50% 50% repeat-x;\n    opacity: .30;\n    filter: Alpha(Opacity = 30);\n    -moz-border-radius: 8px;\n    -khtml-border-radius: 8px;\n    -webkit-border-radius: 8px;\n    border-radius: 8px;\n}\n\n/*!\n* jQuery UI Resizable 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Resizable#theming\n*/\n.ui-resizable {\n    position: relative;\n}\n\n.ui-resizable-handle {\n    position: absolute;\n    font-size: 0.1px;\n    display: block;\n}\n\n.ui-resizable-disabled .ui-resizable-handle, .ui-resizable-autohide .ui-resizable-handle {\n    display: none;\n}\n\n.ui-resizable-n {\n    cursor: n-resize;\n    height: 7px;\n    width: 100%;\n    top: -5px;\n    left: 0;\n}\n\n.ui-resizable-s {\n    cursor: s-resize;\n    height: 7px;\n    width: 100%;\n    bottom: -5px;\n    left: 0;\n}\n\n.ui-resizable-e {\n    cursor: e-resize;\n    width: 7px;\n    right: -5px;\n    top: 0;\n    height: 100%;\n}\n\n.ui-resizable-w {\n    cursor: w-resize;\n    width: 7px;\n    left: -5px;\n    top: 0;\n    height: 100%;\n}\n\n.ui-resizable-se {\n    cursor: se-resize;\n    width: 12px;\n    height: 12px;\n    right: 1px;\n    bottom: 1px;\n}\n\n.ui-resizable-sw {\n    cursor: sw-resize;\n    width: 9px;\n    height: 9px;\n    left: -5px;\n    bottom: -5px;\n}\n\n.ui-resizable-nw {\n    cursor: nw-resize;\n    width: 9px;\n    height: 9px;\n    left: -5px;\n    top: -5px;\n}\n\n.ui-resizable-ne {\n    cursor: ne-resize;\n    width: 9px;\n    height: 9px;\n    right: -5px;\n    top: -5px;\n}\n\n/*!\n* jQuery UI Button 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Button#theming\n*/\n.ui-button {\n    display: inline-block;\n    position: relative;\n    padding: 0;\n    margin-right: .1em;\n    text-decoration: none !important;\n    cursor: pointer;\n    text-align: center;\n    zoom: 1;\n    overflow: visible;\n}\n\n/* the overflow property removes extra width in IE */\n.ui-button-icon-only {\n    width: 2.2em;\n}\n\n/* to make room for the icon, a width needs to be set here */\nbutton.ui-button-icon-only {\n    width: 2.4em;\n}\n\n/* button elements seem to need a little more width */\n.ui-button-icons-only {\n    width: 3.4em;\n}\n\nbutton.ui-button-icons-only {\n    width: 3.7em;\n}\n\n/*button text element */\n.ui-button .ui-button-text {\n    display: block;\n    line-height: 1.4;\n}\n\n.ui-button-text-only .ui-button-text {\n    padding: .4em 1em;\n}\n\n.ui-button-icon-only .ui-button-text, .ui-button-icons-only .ui-button-text {\n    padding: .4em;\n    text-indent: -9999999px;\n}\n\n.ui-button-text-icon-primary .ui-button-text, .ui-button-text-icons .ui-button-text {\n    padding: .4em 1em .4em 2.1em;\n}\n\n.ui-button-text-icon-secondary .ui-button-text, .ui-button-text-icons .ui-button-text {\n    padding: .4em 2.1em .4em 1em;\n}\n\n.ui-button-text-icons .ui-button-text {\n    padding-left: 2.1em;\n    padding-right: 2.1em;\n}\n\n/* no icon support for input elements, provide padding by default */\ninput.ui-button {\n    padding: .4em 1em;\n}\n\n/*button icon element(s) */\n.ui-button-icon-only .ui-icon, .ui-button-text-icon-primary .ui-icon, .ui-button-text-icon-secondary .ui-icon, .ui-button-text-icons .ui-icon, .ui-button-icons-only .ui-icon {\n    position: absolute;\n    top: 50%;\n    margin-top: -8px;\n}\n\n.ui-button-icon-only .ui-icon {\n    left: 50%;\n    margin-left: -8px;\n}\n\n.ui-button-text-icon-primary .ui-button-icon-primary, .ui-button-text-icons .ui-button-icon-primary, .ui-button-icons-only .ui-button-icon-primary {\n    left: .5em;\n}\n\n.ui-button-text-icon-secondary .ui-button-icon-secondary, .ui-button-text-icons .ui-button-icon-secondary, .ui-button-icons-only .ui-button-icon-secondary {\n    right: .5em;\n}\n\n.ui-button-text-icons .ui-button-icon-secondary, .ui-button-icons-only .ui-button-icon-secondary {\n    right: .5em;\n}\n\n/*button sets*/\n.ui-buttonset {\n    margin-right: 7px;\n}\n\n.ui-buttonset .ui-button {\n    margin-left: 0;\n    margin-right: -.3em;\n}\n\n/* workarounds */\nbutton.ui-button::-moz-focus-inner {\n    border: 0;\n    padding: 0;\n}\n\n/* reset extra padding in Firefox */\n/*!\n * jQuery UI Dialog 1.8.21\n *\n * Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n * Dual licensed under the MIT or GPL Version 2 licenses.\n * http://jquery.org/license\n *\n * http://docs.jquery.com/UI/Dialog#theming\n */\n.ui-dialog {\n    position: absolute;\n    padding: .2em;\n    width: 300px;\n    overflow: hidden;\n}\n\n.ui-dialog .ui-dialog-titlebar {\n    padding: .4em 1em;\n    position: relative;\n}\n\n.ui-dialog .ui-dialog-title {\n    float: left;\n    margin: .1em 16px .1em 0;\n}\n\n.ui-dialog .ui-dialog-titlebar-close {\n    position: absolute;\n    right: .3em;\n    top: 50%;\n    width: 19px;\n    margin: -10px 0 0 0;\n    padding: 1px;\n    height: 18px;\n}\n\n.ui-dialog .ui-dialog-titlebar-close span {\n    display: block;\n    margin: 1px;\n}\n\n.ui-dialog .ui-dialog-titlebar-close:hover, .ui-dialog .ui-dialog-titlebar-close:focus {\n    padding: 0;\n}\n\n.ui-dialog .ui-dialog-content {\n    position: relative;\n    border: 0;\n    padding: .5em;\n    background: none;\n    overflow: auto;\n    zoom: 1;\n}\n\n.ui-dialog .ui-dialog-buttonpane {\n    text-align: left;\n    border-width: 1px 0 0 0;\n    background-image: none;\n    margin: .5em 0 0 0;\n    padding: .3em 1em .5em .4em;\n}\n\n.ui-dialog .ui-dialog-buttonpane .ui-dialog-buttonset {\n    float: right;\n}\n\n.ui-dialog .ui-dialog-buttonpane button {\n    margin: .5em .4em .5em 0;\n    cursor: pointer;\n}\n\n.ui-dialog .ui-resizable-se {\n    width: 14px;\n    height: 14px;\n    right: 3px;\n    bottom: 3px;\n}\n\n.ui-draggable .ui-dialog-titlebar {\n    cursor: move;\n}\n\n/*!\n* jQuery UI Tabs 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Tabs#theming\n*/\n.ui-tabs {\n    position: relative;\n    padding: 0em;\n    zoom: 1;\n}\n\n/* position: relative prevents IE scroll bug (element with position: relative inside container with overflow: auto appear as \"fixed\") */\n.ui-tabs .ui-tabs-nav {\n    margin: 0;\n    padding: .2em .2em 0;\n}\n\n.ui-tabs .ui-tabs-nav li {\n    list-style: none;\n    float: left;\n    position: relative;\n    top: 1px;\n    margin: 0 .2em 1px 0;\n    border-bottom: 0 !important;\n    padding: 0;\n    white-space: nowrap;\n}\n\n.ui-tabs .ui-tabs-nav li a {\n    float: left;\n    padding: .2em 1em;\n    text-decoration: none;\n}\n\n.ui-tabs .ui-tabs-nav li.ui-tabs-active {\n    margin-bottom: 0;\n    padding-bottom: 1px;\n}\n\n.ui-tabs .ui-tabs-nav li.ui-tabs-active a, .ui-tabs .ui-tabs-nav li.ui-state-disabled a, .ui-tabs .ui-tabs-nav li.ui-tabs-loading a {\n    cursor: text;\n}\n\n.ui-tabs .ui-tabs-nav li a, .ui-tabs.ui-tabs-collapsible .ui-tabs-nav li.ui-tabs-active a {\n    cursor: pointer;\n}\n\n/* first selector in group seems obsolete, but required to overcome bug in Opera applying cursor: text overall if defined elsewhere... */\n.ui-tabs .ui-tabs-panel {\n    display: block;\n    border-width: 0;\n    padding: 0em 0.1em;\n    background: none;\n}\n\n/*!\n* jQuery UI Progressbar 1.8.21\n*\n* Copyright 2012, AUTHORS.txt (http://jqueryui.com/about)\n* Dual licensed under the MIT or GPL Version 2 licenses.\n* http://jquery.org/license\n*\n* http://docs.jquery.com/UI/Progressbar#theming\n*/\n.ui-progressbar {\n    height: 4px;\n    text-align: left;\n    overflow: hidden;\n}\n\n.ui-progressbar .ui-progressbar-value {\n    margin: -1px;\n    height: 100%;\n}");
-  };
+    // CSS data moved to separate file to allow for easier editing.
+
+    // Use generic loader to import cssScript resource and call its loadCss export.
+    loadResourceModule('cssScript').then(function (cssModule) {
+      try {
+        if (cssModule && typeof cssModule.loadCss === 'function') {
+          // The actual work is done in the cssModule's loadCss function.
+          cssModule.loadCss(database, isChrome, Constant);
+        } else {
+          console.warn('css module has no loadCss export');
+        }
+      } catch (e) {
+        empire.error('cssModule.loadCss', e);
+      }
+    }).catch(function (err) {
+      empire.error('loadResourceModule(cssScript)', err);
+    });
+  }
+
   /**************************************************************************
   *  hourly Resources
   ***************************************************************************/
 
-  var ResourceProduction = new function () {
-    function addProd(position, value) {
-      value = Math.floor(value);
-      if (value > 0)
-        $('span#rp' + position).css('color', 'green').text(Utils.FormatNumToStr(value, true));
-      else if (value < 0)
-        $('span#rp' + position).css('color', 'red').text(Utils.FormatNumToStr(value, true));
-      else $('span#rp' + position).css('color', 'gray').text('+0');
-    }
-    this.createSpan = function (n) {
-      var ids = ['wood', 'wine', 'marble', 'glass', 'sulfur'];
-      if ($('span#rp' + n).length === 0) {
-        $('#cityResources li[id="resources_' + ids[n] + '"]').css({ 'line-height': 'normal', 'padding-top': '0px' }).append('<span id="rp' + n + '" class="resourceProduction"></span>');
+  // lazy-initialized ResourceProduction module; created when initResourceProduction() is called
+  var ResourceProduction = null;
+
+  function initResourceProduction() {
+    if (ResourceProduction) return; // already initialized
+    ResourceProduction = (function () {
+      function addProd(position, value) {
+        value = Math.floor(value);
+        if (value > 0)
+          $('span#rp' + position).css('color', 'green').text(Utils.FormatNumToStr(value, true));
+        else if (value < 0)
+          $('span#rp' + position).css('color', 'red').text(Utils.FormatNumToStr(value, true));
+        else $('span#rp' + position).css('color', 'gray').text('+0');
       }
-    };
-    this.repositionSpan = function (newTradegood) {
-      var oldTradegood = unsafeWindow.ikariam.model.producedTradegood;
-      if (newTradegood != oldTradegood) {
-        if (oldTradegood > 1) {
-          $('span#rp' + oldTradegood).remove();
+      function createSpan(n) {
+        var ids = ['wood', 'wine', 'marble', 'glass', 'sulfur'];
+        if ($('span#rp' + n).length === 0) {
+          $('#cityResources li[id="resources_' + ids[n] + '"]').css({ 'line-height': 'normal', 'padding-top': '0px' }).append('<span id="rp' + n + '" class="resourceProduction"></span>');
         }
-        this.createSpan(newTradegood);
       }
-    };
-    this.updateProd = function () {
-      addProd(0, unsafeWindow.ikariam.model.resourceProduction * 3600);
-      if (unsafeWindow.ikariam.model.cityProducesWine) {
-        addProd(1, unsafeWindow.ikariam.model.tradegoodProduction * 3600 - unsafeWindow.ikariam.model.wineSpendings);
+      function repositionSpan(newTradegood) {
+        var oldTradegood = unsafeWindow.ikariam.model.producedTradegood;
+        if (newTradegood != oldTradegood) {
+          if (oldTradegood > 1) {
+            $('span#rp' + oldTradegood).remove();
+          }
+          createSpan(newTradegood);
+        }
       }
-      else {
-        addProd(1, - unsafeWindow.ikariam.model.wineSpendings);
-        addProd(unsafeWindow.ikariam.model.producedTradegood, unsafeWindow.ikariam.model.tradegoodProduction * 3600);
+      function updateProd() {
+        addProd(0, unsafeWindow.ikariam.model.resourceProduction * 3600);
+        if (unsafeWindow.ikariam.model.cityProducesWine) {
+          addProd(1, unsafeWindow.ikariam.model.tradegoodProduction * 3600 - unsafeWindow.ikariam.model.wineSpendings);
+        } else {
+          addProd(1, -unsafeWindow.ikariam.model.wineSpendings);
+          addProd(unsafeWindow.ikariam.model.producedTradegood, unsafeWindow.ikariam.model.tradegoodProduction * 3600);
+        }
       }
-    };
-  }();
-  $(function () {
-    ResourceProduction.createSpan(0); ResourceProduction.createSpan(1); ResourceProduction.createSpan(2); ResourceProduction.createSpan(3); ResourceProduction.createSpan(4); ResourceProduction.updateProd(); unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData = unsafeWindow.ikariam.model.updateGlobalData;
-    unsafeWindow.ikariam.model.updateGlobalData = function (dataSet) {
-      ResourceProduction.repositionSpan(dataSet.producedTradegood); unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet); ResourceProduction.updateProd();
-    };
-  });
+      return { createSpan: createSpan, repositionSpan: repositionSpan, updateProd: updateProd };
+    })();
+
+    try {
+      ResourceProduction.createSpan(0);
+      ResourceProduction.createSpan(1);
+      ResourceProduction.createSpan(2);
+      ResourceProduction.createSpan(3);
+      ResourceProduction.createSpan(4);
+      ResourceProduction.updateProd();
+
+      var model = unsafeWindow.ikariam && unsafeWindow.ikariam.model;
+      if (model) {
+        model.ResourceProduction_updateGlobalData = model.updateGlobalData;
+        model.updateGlobalData = function (dataSet) {
+          ResourceProduction.repositionSpan(dataSet.producedTradegood); 
+          unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet); 
+          ResourceProduction.updateProd();
+        };
+      } else {
+        console.warn('initResourceProduction: ikariam.model not present when initializing');
+      }
+    } catch (e) {
+      empire && empire.error ? empire.error('initResourceProduction', e) : console.error(e);
+    }
+  }
 
   /***********************************************************************************************************************
    * ikariam
@@ -4136,10 +4369,40 @@
       if (ikariam.CurrentCityId !== params.cityId) {
         paramList.action = 'header';
         paramList.function = 'changeCurrentCity';
-        paramList.actionRequest = unsafeWindow.ikariam.model.actionRequest;
+        // Prefer cached model; if actionRequest is not available synchronously,
+        // wait for the model and then navigate. This avoids racing with model init.
+        var model = getCachedModel();
+        var doNavigate = function () {
+          if (model && model.actionRequest) paramList.actionRequest = model.actionRequest;
+          paramList.currentCityId = ikariam.CurrentCityId;
+          paramList.oldView = ikariam.mainView;
+          if (mainView !== undefined && mainView !== ikariam.mainView) {
+            paramList.oldBackgroundView = ikariam.mainView;
+            paramList.backgroundView = mainView;
+            ajax = false;
+          }
+          $.extend(paramList, params);
+          var url = '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&');
+          if (ajax) {
+            gotoAjaxURL(url);
+          } else {
+            gotoURL(ikariam.url() + url);
+          }
+        };
+        if (!model || !model.actionRequest) {
+          // wait for model and then navigate (fall back to navigating without actionRequest)
+          return whenModelReady().then(function (m) {
+            model = m || getCachedModel();
+            doNavigate();
+          }).catch(function () {
+            // fallback: navigate anyway
+            doNavigate();
+          });
+        }
         paramList.currentCityId = ikariam.CurrentCityId;
         paramList.oldView = ikariam.mainView;
       }
+      // If we reached here, model/actionRequest already handled above, so perform navigation.
       if (mainView !== undefined && mainView !== ikariam.mainView) {
         paramList.oldBackgroundView = ikariam.mainView;
         paramList.backgroundView = mainView;
@@ -4147,13 +4410,9 @@
       }
       $.extend(paramList, params);
       if (ajax) {
-        gotoAjaxURL('?' + $.map(paramList, function (value, key) {
-          return key + '=' + value;
-        }).join('&'));
+        gotoAjaxURL('?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
       } else {
-        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) {
-          return key + '=' + value;
-        }).join('&'));
+        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
       }
       function gotoURL(url) {
         window.location.assign(url);
@@ -4235,7 +4494,20 @@
       return this._GameVersion;
     },
     get CurrentCityId() {
-      return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city' ? ikariam._currentCity || unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id : unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id;
+      try {
+        var model = getCachedModel();
+        var selectedId = null;
+        if (model && model.relatedCityData && typeof model.relatedCityData.selectedCity !== 'undefined') {
+          var sel = model.relatedCityData.selectedCity;
+          if (model.relatedCityData[sel]) selectedId = model.relatedCityData[sel].id;
+        }
+        if (unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city') {
+          return ikariam._currentCity || selectedId || null;
+        }
+        return selectedId || null;
+      } catch (e) {
+        return null;
+      }
     },
     get viewIsCity() {
       return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city';
@@ -4871,49 +5143,67 @@
       render.toast('Updated: ' + $('#premium').children(":first").text());
     },
     FetchAllTowns: function () {
-      var _relatedCityData = unsafeWindow.ikariam.model.relatedCityData;
-      var _cityId = null;
-      var city = null;
-      var order = database.settings.cityOrder.value;
-      if (!order.length) order = [];
-      if (_relatedCityData) {
-        for (_cityId in _relatedCityData) {
-          if (_cityId != 'selectedCity' && _cityId != 'additionalInfo') {
-            var own = (_relatedCityData[_cityId].relationship == 'ownCity');
-            var deployed = (_relatedCityData[_cityId].relationship == 'deployedCities');
-            var occupied = (_relatedCityData[_cityId].relationship == 'occupiedCities');
-            if (own) {
-              if (database.cities[_relatedCityData[_cityId].id] == undefined) {
-                (database.cities[_relatedCityData[_cityId].id] = database.addCity(_relatedCityData[_cityId].id)).init();
-                city = database.cities[_relatedCityData[_cityId].id];
-                city.updateTradeGoodID(parseInt(_relatedCityData[_cityId].tradegood));
-                city.isOwn = own;
+      // run the original FetchAllTowns logic once the model is available
+      var run = function (model) {
+        try {
+          var _relatedCityData = unsafeWindow.ikariam.model.relatedCityData;
+          var _cityId = null;
+          var city = null;
+          var order = database.settings.cityOrder.value;
+          if (!order.length) order = [];
+          if (_relatedCityData) {
+            for (_cityId in _relatedCityData) {
+              if (_cityId != 'selectedCity' && _cityId != 'additionalInfo') {
+                var own = (_relatedCityData[_cityId].relationship == 'ownCity');
+                var deployed = (_relatedCityData[_cityId].relationship == 'deployedCities');
+                var occupied = (_relatedCityData[_cityId].relationship == 'occupiedCities');
+                if (own) {
+                  if (database.cities[_relatedCityData[_cityId].id] == undefined) {
+                    (database.cities[_relatedCityData[_cityId].id] = database.addCity(_relatedCityData[_cityId].id)).init();
+                    city = database.cities[_relatedCityData[_cityId].id];
+                    city.updateTradeGoodID(parseInt(_relatedCityData[_cityId].tradegood));
+                    city.isOwn = own;
+                  }
+                  city = database.cities[_relatedCityData[_cityId].id];
+                  city.updateName(_relatedCityData[_cityId].name);
+                  var coords = _relatedCityData[_cityId].coords.match(/(\d+)/);
+                  city.updateCoordinates(coords[0], coords[1]);
+                  if ($.inArray(city.getId, order) == -1) {
+                    order.push(city.getId);
+                  }
+                }
               }
-              city = database.cities[_relatedCityData[_cityId].id];
-              city.updateName(_relatedCityData[_cityId].name);
-              var coords = _relatedCityData[_cityId].coords.match(/(\d+)/);
-              city.updateCoordinates(coords[0], coords[1]);
-              if ($.inArray(city.getId, order) == -1) {
-                order.push(city.getId);
+            }
+            //remove deleted cities
+            for (var cID in database.cities) {
+              var ghost = true;
+              for (_cityId in _relatedCityData) {
+                if (_relatedCityData[_cityId].id == cID || !database.cities[cID].isOwn) {
+                  ghost = false;
+                }
+              }
+              if (ghost) {
+                delete database.cities[cID];
               }
             }
           }
+          database.settings.cityOrder.value = order;
+        } catch (e) {
+          empire && empire.error ? empire.error('FetchAllTowns', e) : console.error(e);
         }
-        //remove deleted cities
-        for (var cID in database.cities) {
-          var ghost = true;
-          for (_cityId in _relatedCityData) {
-            if (_relatedCityData[_cityId].id == cID || !database.cities[cID].isOwn) {
-              ghost = false;
-            }
-          }
-          if (ghost) {
-            delete database.cities[cID];
-          }
-        }
+      };
+
+      var model = getCachedModel();
+      if (model) {
+        run(model);
+      } else {
+        whenModelReady(function (m) { run(m || getCachedModel()); }).catch(function (err) {
+          console.warn('FetchAllTowns: waitForIkariamModel failed, attempting run anyway', err);
+          run(getCachedModel());
+        });
       }
-      database.settings.cityOrder.value = order;
     },
+
     get currentShips() {
       if (this.$freeTransporters == undefined) {
         this.$freeTransporters = $('#js_GlobalMenu_freeTransporters');
@@ -4925,1431 +5215,27 @@
   /***********************************************************************************************************************
    * Constants
    **********************************************************************************************************************/
-  var Constant = {
-    PremiumData: {
-      PremiumAccount: {
-        type: 15,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0,
-        icon: '/cdn/all/both/premium/premium_account.png'
-      },
-      ResourceBonus: {
-        type: 16,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_wood.jpg'
-      },
-      WineBonus: {
-        type: 14,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_wine.jpg'
-      },
-      MarbleBonus: {
-        type: 11,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_marble.jpg'
-      },
-      SulfurBonus: {
-        type: 12,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_sulfur.jpg'
-      },
-      CrystalBonus: {
-        type: 13,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_crystal.jpg'
-      },
-      ResearchPointsBonus: {
-        type: 18,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_research.jpg'
-      },
-      ResearchPointsBonusExtremeLength: {
-        type: 0,
-        duration: 70 * 24 * 60,
-        cost: 0,
-        bonus: 0.2,
-        icon: '/cdn/all/both/premium/b_premium_research_big.jpg'
-      },
-      SafecapacityBonus: {
-        type: 17,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 1,
-        icon: '/cdn/all/both/premium/b_premium_safecapacity.jpg'
-      },
-      StoragecapacityBonus: {
-        type: 33,
-        duration: 7 * 24 * 60,
-        cost: 0,
-        bonus: 1,
-        icon: '/cdn/all/both/premium/b_premium_storagecapacity.jpg'
+  // Constant will be populated asynchronously by loading the programDataScript resource.
+  var Constant = null;
+  // Promise that resolves when Constant is available.
+  var ConstantReady = loadResourceModule('programDataScript')
+    .then(function (dataModule) {
+      // loadResourceModule already calls module.init if present.
+      if (dataModule && typeof dataModule.getProgramData === 'function') {
+        return dataModule.getProgramData();
+      } else if (dataModule && typeof dataModule.default === 'function') {
+        return dataModule.default();
       }
-    },
-    Premium: {
-      PREMIUM_ACCOUNT: 'PremiumAccount',
-      WOOD_BONUS: 'ResourceBonus',
-      WINE_BONUS: 'WineBonus',
-      MARBLE_BONUS: 'MarbleBonus',
-      SULFUR_BONUS: 'SulfurBonus',
-      CRYSTAL_BONUS: 'CrystalBonus',
-      RESEARCH_POINTS_BONUS: 'ResearchPointsBonus',
-      RESEARCH_POINTS_BONUS_EXTREME_LENGTH: 'ResearchPointsBonusExtremeLength',
-      SAFECAPACITY_BONUS: 'SafecapacityBonus',
-      STORAGECAPACITY_BONUS: 'StoragecapacityBonus',
-    },
-    Events: {
-      BUILDINGS_UPDATED: 'buildingsUpdated',
-      GLOBAL_UPDATED: 'globalDataUpdated',
-      MOVEMENTS_UPDATED: 'movementsUpdated',
-      RESOURCES_UPDATED: 'resourcesUpdated',
-      CITY_UPDATED: 'cityData',
-      MILITARY_UPDATED: 'militaryUpdated',
-      LOCAL_STRINGS_AVAILABLE: 'localisationAvailable',
-      MODEL_AVAILABLE: 'modelAvailable',
-      CITYDATA_AVAILABLE: 'cityDataAvailable',
-      DATABASE_LOADED: 'databaseLoaded',
-      TAB_CHANGED: 'tabChanged',
-      PREMIUM_UPDATED: 'premiumUpdated',
-    },
-    Settings: {
-      CITY_ORDER: 'cityOrder',
-      FULL_ARMY_TABLE: 'fullArmyTable',
-      PLAYER_INFO: 'playerInfo',
-      ON_IKA_LOGS: 'onIkaLogs',
-      HIDE_WORLD: 'hideOnWorldView',
-      HIDE_ISLAND: 'hideOnIslandView',
-      HIDE_CITY: 'hideOnCityView',
-      SHOW_ON_TOP: 'onTop',
-      WINDOW_TENNIS: 'windowTennis',
-      AUTO_UPDATE: 'autoUpdates',
-      SMALLER_FONT: 'smallFont',
-      GOLD_LONG: 'GoldShort',
-      NEWS_TICKER: 'newsTicker',
-      EVENT: 'event',
-      LOGIN_POPUP: 'logInPopup',
-      BIRD_SWARM: 'birdSwarm',
-      WALKERS: 'walkers',
-      NO_PIRACY: 'noPiracy',
-      CONTROL_CENTER: 'controlCenter',
-      WITHOUT_FABLE: 'withoutFable',
-      AMBROSIA_PAY: 'ambrosiaPay',
-      ALTERNATIV_BUILDINGS: 'alternativeBuildingList',
-      COMPRESS_BUILDINGS: 'compressedBuildingList',
-      HOURLY_RESS: 'hourlyRess',
-      WINE_OUT: 'wineOut',
-      DAILY_BONUS: 'dailyBonus',
-      WINE_WARNING: 'wineWarning',
-      WINE_WARNING_TIME: 'wineWarningTime',
-      LANGUAGE_CHANGE: 'languageChange',
-    },
-    SettingData: {
-      cityOrder: { type: 'array', default: [], categories: 'ignore' },
-      fullArmyTable: { type: 'boolean', default: false, categories: 'army_category' },
-      playerInfo: { type: 'boolean', default: false, categories: 'army_category' },
-      onIkaLogs: { type: 'boolean', default: false, categories: 'army_category' },
-      hideOnWorldView: { type: 'boolean', default: false, categories: 'visibility_category' },
-      hideOnIslandView: { type: 'boolean', default: false, categories: 'visibility_category' },
-      hideOnCityView: { type: 'boolean', default: false, categories: 'visibility_category' },
-      onTop: { type: 'boolean', default: false, categories: 'display_category' },
-      windowTennis: { type: 'boolean', default: false, categories: 'display_category' },
-      autoUpdates: { type: 'boolean', default: false, categories: 'global_category' },
-      smallFont: { type: 'boolean', default: false, categories: 'display_category' },
-      GoldShort: { type: 'boolean', default: false, categories: 'display_category' },
-      newsTicker: { type: 'boolean', default: false, categories: 'display_category' },
-      event: { type: 'boolean', default: false, categories: 'display_category' },
-      logInPopup: { type: 'boolean', default: false, categories: 'display_category' },
-      birdSwarm: { type: 'boolean', default: false, categories: 'display_category' },
-      walkers: { type: 'boolean', default: false, categories: 'display_category' },
-      noPiracy: { type: 'boolean', default: false, categories: 'display_category' },
-      controlCenter: { type: 'boolean', default: false, categories: 'display_category' },
-      withoutFable: { type: 'boolean', default: false, categories: 'display_category' },
-      ambrosiaPay: { type: 'boolean', default: false, categories: 'display_category' },
-      alternativeBuildingList: { type: 'boolean', default: false, categories: 'building_category' },
-      compressedBuildingList: { type: 'boolean', default: false, category: 'building_category' },
-      hourlyRess: { type: 'boolean', default: false, categories: 'resource_category' },
-      wineOut: { type: 'boolean', default: false, categories: 'resource_category' },
-      dailyBonus: { type: 'boolean', default: false, categories: 'resource_category' },
-      wineWarning: { type: 'boolean', default: false, categories: 'resource_category' },
-      wineWarningTime: { type: 'number', default: 0, choices: [0, 12, 24, 36, 48, 96], categories: 'resource_category' },
-      languageChange: { type: 'language', default: ikariam.Language(), selection: ['en'], categories: 'language_category' },
-    },
-    SettingCategories: {
-      VISIBILITY: 'visibility_category',
-      DISPLAY: 'display_category',
-      OTHER: 'global_category',
-      ARMY: 'army_category',
-      BUILDING: 'building_category',
-      RESOURCE: 'resource_category',
-      LANGUAGE: 'language_category',
-    },
-
-    LanguageData: {
-      en: {
-        chronosForge: 'Chronos Forge',
-        shrineOfOlympus: 'Gods\’ Shrine',
-        dockyard: 'Dockyard',
-        buildings: 'Buildings',
-        economy: 'Economy',
-        military: 'Military',
-        towns: 'Towns',
-        townHall: 'Town Hall',
-        palace: 'Palace',
-        palaceColony: 'Governor\`s Residence',
-        tavern: 'Tavern',
-        museum: 'Museum',
-        academy: 'Academy',
-        workshop: 'Workshop',
-        temple: 'Temple',
-        embassy: 'Embassy',
-        warehouse: 'Warehouse',
-        dump: 'Depot',
-        port: 'Trading Port',
-        branchOffice: 'Trading Post',
-        wall: 'Town Wall',
-        safehouse: 'Hideout',
-        barracks: 'Barracks',
-        shipyard: 'Shipyard',
-        forester: 'Forester\`s House',
-        carpentering: 'Carpenter\`s Workshop',
-        winegrower: 'Winery',
-        vineyard: 'Wine Press',
-        stonemason: 'Stonemason',
-        architect: 'Architect\`s Office',
-        glassblowing: 'Glassblower',
-        optician: 'Optician',
-        alchemist: 'Alchemist\`s Tower',
-        fireworker: 'Firework Test Area',
-        pirateFortress: 'Pirate Fortress',
-        blackMarket: 'Black Market',
-        marineChartArchive: 'Sea Chart Archive',
-        tavern_level: 'Tavern Level',
-        corruption: 'Corruption',
-        cultural: 'Cultural Goods',
-        population: 'Population',
-        citizens: 'Citizens',
-        scientists: 'Scientists',
-        scientists_max: 'max. Scientists',
-        options: 'Options',
-        help: 'Help',
-        agora: 'to Agora',
-        to_world: 'Show World',
-        to_island: 'Show Island',
-        army_cost: 'Army Cost',
-        fleet_cost: 'Fleet Cost',
-        army_supply: 'Army Supply',
-        fleet_supply: 'Fleet Supply',
-        research_cost: 'Research Cost',
-        income: 'Income',
-        expenses: 'Expenses',
-        balances: 'Balances',
-        espionage: 'View Espionage',
-        contracts: 'View Contracts',
-        combat: 'View Combats',
-        satisfaction: 'Satisfaction',
-        total_: 'total',
-        max_Level: 'max. Level',
-        actionP: 'Action Points',
-        researchP: 'Research Points',
-        finances_: 'Finances',
-        free_ground: 'free Building Ground',
-        wood_: 'Building Material',
-        wine_: 'Wine',
-        marble_: 'Marble',
-        crystal_: 'Crystal Glass',
-        sulphur_: 'Sulphur',
-        angry: 'angry',
-        unhappy: 'unhappy',
-        neutral: 'neutral',
-        happy: 'happy',
-        euphoric: 'euphoric',
-        housing_space: 'max. Housing space',
-        free_Citizens: 'free Citizens',
-        free_housing_space: 'free Housing space',
-        level_tavern: 'Level Tavern',
-        maximum: 'maximum',
-        used: 'used',
-        missing: 'missing',
-        plundergold: 'Gold',
-        garrision: 'Garrison limit',
-        Sea: 'Sea',
-        Inland: 'Inland',
-        full: '0',
-        off: 'off',
-        time_to_full: 'to full',
-        time_to_empty: 'to empty',
-        capacity: 'Capacity',
-        safe: 'Safe',
-        training: 'Training',
-        plundering: 'Plundering',
-        constructing: 'Expansion in Progress',
-        next_Level: 'Needed for Level',
-        transport: 'Transports',
-        loading: 'loading',
-        en_route: 'en route',
-        arrived: 'arrived',
-        arrival: 'Arrival',
-        to_town_hall: 'to Town Hall',
-        to_saw_mill: 'to Saw Mill',
-        to_mine: 'to luxury good',
-        to_barracks: 'to Barracks',
-        to_shipyard: 'to Shipyard',
-        member: 'View Memberlist',
-        transporting: 'Transport to',
-        transporting_units: 'Deploying troops to',
-        transporting_fleets: 'Moving fleet to',
-        today: 'today',
-        tomorrow: 'tomorrow',
-        yesterday: 'yesterday',
-        second: 's',
-        minute: 'm',
-        hour: 'h',
-        day: 'D',
-        week: 'W',
-        month: 'M',
-        year: 'Y',
-        hour_long: 'Hour',
-        day_long: 'Day',
-        week_long: 'Week',
-        ika_world: 'Search on Ikariam-World',
-        charts: 'Show Charts',
-        wonder1: 'Hephaistos\` Forge',
-        wonder2: 'Hades\` Holy Grove',
-        wonder3: 'Demeter\`s gardens',
-        wonder4: 'Athena\`s Parthenon',
-        wonder5: 'Temple of Hermes',
-        wonder6: 'Ares\` stronghold',
-        wonder7: 'Temple of Poseidon',
-        wonder8: 'Colossus',
-        //settings
-        cityOrder: 'cityOrder',
-        fullArmyTable: 'Show all military units',
-        hideOnWorldView: 'Force hide on world view',
-        hideOnIslandView: 'Force hide on island view',
-        hideOnCityView: 'Force hide on city view',
-        onTop: 'Show on top of Ikariam windows',
-        windowTennis: 'Show above ikariam on mouseover',
-        autoUpdates: 'Automaticly check for updates',
-        smallFont: 'Use smaller font size',
-        goldShort: 'Reduce total gold display',
-        alternativeBuildingList: 'Use alternative building list',
-        compressedBuildingList: 'Use compressed building list',
-        wineOut: 'Disable Ambrosia feature "Out of Wine"',
-        dailyBonus: 'Automatically confirm the daily bonus',
-        unnecessaryTexts: 'Removes unnecessary descriptions',
-        ambrosiaPay: 'Deactivate new Ambrosia buying options',
-        wineWarning: 'Hide tooltip "wine warning"',
-        wineWarningTime: 'Wine remaining warning',
-        languageChange: 'Change language',
-        current_Version: 'Current Version<b>:</b>',
-        ikariam_Version: 'Ikariam Version<b>:</b>',
-        reset: 'Reset all settings to default',
-        goto_website: 'Goto the scripts greasyfork.org website',
-        website: 'Website',
-        Check_for_updates: 'Force a check for updates',
-        check: 'Check for updates',
-        Report_bug: 'Report a bug in the script',
-        report: 'Report Bug',
-        save: 'Save',
-        save_settings: 'Save settings<b>!</b>&nbsp;',
-        newsticker: 'Hide news ticker',
-        event: 'Hide events',
-        logInPopup: 'Hide the Info Window when login',
-        birdswarm: 'Hide the bird swarm',
-        walkers: 'Hide animated citizens',
-        noPiracy: 'No Piracy',
-        hourlyRes: 'Hide hourly resources',
-        onIkaLogs: 'Use IkaLog Battle Report Converter',
-        playerInfo: 'Show information about player',
-        control: 'Hide Control center',
-        alert: 'Please choose only one option!',
-        alert_palace: 'Please visit your capital city first',
-        alert_palace1: 'There is still no palace present in your city.\n Please explore expansion and build a palace.',
-        alert_toast: 'Data Reset, reloading the page in a few seconds',
-        alert_error: 'An error occurred while checking for updates: ',
-        alert_noUpdate: 'No update is available for "',
-        alert_update: 'There is an update available for the Greasemonkey script "',
-        alert_update1: 'Would you like to go to the install page now?',
-        alert_daily: 'Please enable \'Automatically confirm the daily bonus \'',
-        alert_wine: 'Warning wine > ',
-        en: 'English',
-        // Units
-        phalanx: 'Hoplite',
-        steamgiant: 'Steam Giant',
-        spearman: 'Spearman',
-        swordsman: 'Swordsman',
-        slinger: 'Slinger',
-        archer: 'Archer',
-        marksman: 'Sulphur Carabineer',
-        ram: 'Battering Ram',
-        catapult: 'Catapult',
-        mortar: 'Mortar',
-        gyrocopter: 'Gyrocopter',
-        bombardier: 'Ballon-Bombardier',
-        cook: 'Cook',
-        medic: 'Doctor',
-        spartan: 'Spartan',
-        ship_ram: 'Ram Ship',
-        ship_flamethrower: 'Fire Ship',
-        ship_steamboat: 'Steam Ram',
-        ship_ballista: 'Ballista Ship',
-        ship_catapult: 'Catapult Ship',
-        ship_mortar: 'Mortar Ship',
-        ship_submarine: 'Diving Boat',
-        ship_paddlespeedship: 'Paddle Speedboat',
-        ship_ballooncarrier: 'Ballon Carrier',
-        ship_tender: 'Tender',
-        ship_rocketship: 'Rocket Ship',
-        //settings descriptions
-        cityOrder_description: 'cityOrder_description',
-        fullArmyTable_description: 'Show all possible army units on the Army tab',
-        hideOnWorldView_description: 'Hide by default on world view',
-        hideOnIslandView_description: 'Hide by default on island view',
-        hideOnCityView_description: 'Hide by default on city view',
-        onTop_description: 'Show board on top of Ikariam windows',
-        windowTennis_description: 'Bring board to the top on mouseover<br>Send behind ikariam windows on mouseout<br>Ignores \'on top\' option',
-        autoUpdates_description: 'Enable automatic update checking<br>(Once every 24hrs)',
-        smallFont_description: 'Use a smaller font for the data tables',
-        goldShort_description: 'Total gold display shorten on the Board',
-        alternativeBuildingList_description: 'Use alternative building table',
-        compressedBuildingList_description: 'Use condensed building table<br>Groups luxury resource production buildings<br>Groups palace/govenors residence',
-        wineOut_description: 'Disables the Ambrosia option to buy \'Out of Wine\'',
-        dailyBonus_description: 'The daily bonus will be automatically confirmed<br>and the window is no longer displayed',
-        unnecessaryTexts_description: 'Removes unnecessary descriptions in buildings,<br>the building list of buildings, minimize scrolling',
-        ambrosiaPay_description: 'Disables the new Ambrosia buying options,<br>click on the button cancels the action',
-        wineWarning_description: 'Hide tooltip \'wine warning\'',
-        wineWarningTime_description: 'Wine remaining time turns, \'red\' at this point',
-        languageChange_description: 'Change the language',
-        newsticker_description: 'Hide news ticker in the GF-toolbar',
-        event_description: 'Hide events under the advisers',
-        logInPopup_description: 'Hide the Info Window when login',
-        birdswarm_description: 'Hide the bird swarm in island and city view',
-        walkers_description: 'Hide animated citizens and transport ships in island and city view',
-        noPiracy_description: 'Removes the Pirate Plot',
-        hourlyRes_description: 'Hide hourly resources in the infobar',
-        onIkaLogs_description: 'use IkaLogs for your battle reports',
-        playerInfo_description: 'View information from the players in the island view',
-        control_description: 'Hide the Control center in world, island and city view',
-        // settings categories
-        visibility_category: '<b>Board Visibility</b>',
-        display_category: '<b>Display Settings</b>',
-        global_category: '<b>Global Settings</b>',
-        army_category: '<b>Army Settings</b>',
-        building_category: '<b>Building Settings</b>',
-        resource_category: '<b>Resource Settings</b>',
-        language_category: '<b>Language Settings</b>',
-        // Helptable
-        Initialize_Board: '<b>Initialize Board</b>',
-        on_your_Town_Hall: 'on your Town Hall and go through each town with that view open',
-        on_the_Troops: 'on the \"Troops in town\" tab on left side and go through each town with that view open',
-        on_Museum: 'on Museum and then the \"Distribute Cultural Treaties\" tab',
-        on_Research_Advisor: 'on Research Advisor and then click on each of the 4 research tabs in the left window',
-        on_your_Palace: 'on your Palace',
-        on_your_Finance: 'on your Finance tab',
-        on_the_Ambrosia: 'on the \"Ambrosia shop\"',
-        Re_Order_Towns: '<b>Re-Order Towns</b>',
-        Reset_Position: '<b>Reset Position</b>',
-        On_any_tab: 'On any tab, drag the resource icon to the left of the town name',
-        Right_click: 'Right click on the empire menu button on the left side page menu',
-        Navigate: '1, 2, 3 ... 0, -, = <b>:&nbsp;&nbsp;</b> Navigate to town 1 to 12',
-        Navigate_to_City: 'SHIFT + 1/2/3/4/5/4/5 <b>:&nbsp;&nbsp;</b> Navigate to City/ Building/ Army/ Setting/ Help tab',
-        Navigate_to: 'Q, W, E, R <b>:&nbsp;&nbsp;</b> Navigate to City/ Military/ Research/ Diplomacy advisor',
-        Navigate_to_World: 'SHIFT + Q, W, E <b>:&nbsp;&nbsp;</b> Navigate to World/ Island/ City view',
-        Spacebar: 'Spacebar<b>:&nbsp;&nbsp;</b> Minimise/ Maximise the board',
-        Hotkeys: '<b>Hotkeys</b>',
-        // formatting
-        thousandSeperator: ',',
-        decimalPoint: '.',
-        click_: '<b>Click</b>'
-      }
-    },
-
-    Resources: {
-      GOLD: 'gold',
-      WOOD: 'wood',
-      WINE: 'wine',
-      MARBLE: 'marble',
-      GLASS: 'glass',
-      SULFUR: 'sulfur'
-    },
-    ResourceIDs: {
-      GOLD: 'gold',
-      WOOD: 'resource',
-      WINE: 1,
-      MARBLE: 2,
-      GLASS: 3,
-      SULFUR: 4
-    },
-    Research: {
-      Seafaring: {
-        CARPENTRY: 2150,
-        DECK_WEAPONS: 1010,
-        PIRACY: 1170,
-        SHIP_MAINTENANCE: 1020,
-        DRAFT: 1130,
-        EXPANSION: 1030,
-        FOREIGN_CULTURES: 1040,
-        PITCH: 1050,
-        MARKET: 2070,
-        GREEK_FIRE: 1060,
-        COUNTERWEIGHT: 1070,
-        DIPLOMACY: 1080,
-        SEA_MAPS: 1090,
-        PADDLE_WHEEL_ENGINE: 1100,
-        CAULKING: 1140,
-        MORTAR_ATTACHMENT: 1110,
-        MASSIVE_RAM: 1150,
-        OFFSHORE_BASE: 1160,
-        SEAFARING_FUTURE: 1999
-      },
-      Economy: {
-        CONSERVATION: 2010,
-        PULLEY: 2020,
-        WEALTH: 2030,
-        WINE_CULTURE: 2040,
-        IMPROVED_RESOURCE_GATHERING: 2130,
-        GEOMETRY: 2060,
-        ARCHITECTURE: 1120,
-        HOLIDAY: 2080,
-        LEGISLATION: 2170,
-        CULINARY_SPECIALITIES: 2050,
-        HELPING_HANDS: 2090,
-        SPIRIT_LEVEL: 2100,
-        WINE_PRESS: 2140,
-        DEPOT: 2160,
-        SOLDIER_EXCHANGE: 2180,
-        BUREACRACY: 2110,
-        UTOPIA: 2120,
-        ECONOMIC_FUTURE: 2999
-      },
-      Science: {
-        WELL_CONSTRUCTION: 3010,
-        PAPER: 3020,
-        ESPIONAGE: 3030,
-        POLYTHEISM: 3040,
-        INK: 3050,
-        GOVERNMENT_FORMATION: 3150,
-        INVENTION: 3140,
-        CULTURAL_EXCHANGE: 3060,
-        ANATOMY: 3070,
-        OPTICS: 3080,
-        EXPERIMENTS: 3081,
-        MECHANICAL_PEN: 3090,
-        BIRDS_FLIGHT: 3100,
-        ARCHIVING: 3170,
-        LETTER_CHUTE: 3110,
-        STATE_RELIGION: 3160,
-        PRESSURE_CHAMBER: 3120,
-        ARCHIMEDEAN_PRINCIPLE: 3130,
-        SCIENTIFIC_FUTURE: 3999
-      },
-      Military: {
-        DRY_DOCKS: 4010,
-        MAPS: 4020,
-        PROFESSIONAL_ARMY: 4030,
-        SEIGE: 4040,
-        CODE_OF_HONOR: 4050,
-        BALLISTICS: 4060,
-        LAW_OF_THE_LEVEL: 4070,
-        GOVERNOR: 4080,
-        PYROTECHNICS: 4130,
-        LOGISTICS: 4090,
-        GUNPOWDER: 4100,
-        ROBOTICS: 4110,
-        CANNON_CASTING: 4120,
-        MILITARISTIC_FUTURE: 4999
-      }
-    },
-    Military: {
-      // Army
-      HOPLITE: 'phalanx',
-      SPARTAN: 'spartan',
-      STEAM_GIANT: 'steamgiant',
-      SPEARMAN: 'spearman',
-      SWORDSMAN: 'swordsman',
-      SLINGER: 'slinger',
-      ARCHER: 'archer',
-      MARKSMAN: 'marksman',
-      RAM: 'ram',
-      CATAPULT: 'catapult',
-      MORTAR: 'mortar',
-      GYROCOPTER: 'gyrocopter',
-      BALLOON_BOMBADIER: 'bombardier',
-      COOK: 'cook',
-      DOCTOR: 'medic',
-      ARMY: 'army',
-
-      // Navy
-      RAM_SHIP: 'ship_ram',
-      FLAME_THROWER: 'ship_flamethrower',
-      STEAM_RAM: 'ship_steamboat',
-      BALLISTA_SHIP: 'ship_ballista',
-      CATAPULT_SHIP: 'ship_catapult',
-      MORTAR_SHIP: 'ship_mortar',
-      SUBMARINE: 'ship_submarine',
-      PADDLE_SPEEDBOAT: 'ship_paddlespeedship',
-      BALLOON_CARRIER: 'ship_ballooncarrier',
-      TENDER: 'ship_tender',
-      ROCKET_SHIP: 'ship_rocketship',
-      NAVY: 'navy'
-    },
-    unitIds: {
-      301: 'slinger',
-      302: 'swordsman',
-      303: 'phalanx',
-      304: 'marksman',
-      305: 'mortar',
-      306: 'catapult',
-      307: 'ram',
-      308: 'steamgiant',
-      309: 'bombardier',
-      310: 'cook',
-      311: 'medic',
-      312: 'gyrocopter',
-      313: 'archer',
-      315: 'spearman',
-      316: 'barbarian',
-      319: 'spartan',
-
-      210: 'ship_ram',
-      211: 'ship_flamethrower',
-      212: 'ship_submarine',
-      213: 'ship_ballista',
-      214: 'ship_catapult',
-      215: 'ship_mortar',
-      216: 'ship_steamboat',
-      217: 'ship_rocketship',
-      218: 'ship_paddlespeedship',
-      219: 'ship_ballooncarrier',
-      220: 'ship_tender'
-    },
-    UnitData: {
-      slinger: { id: 301, type: 'army', position: 'army_ranged', minlevel: 2, baseTime: 90, baseCost: 2 },
-      swordsman: { id: 302, type: 'army', position: 'army_flank', minlevel: 6, baseTime: 180, baseCost: 4 },
-      phalanx: { id: 303, type: 'army', position: 'army_front_line', minlevel: 4, baseTime: 300, baseCost: 3 },
-      marksman: { id: 304, type: 'army', position: 'army_ranged', minlevel: 13, baseTime: 600, baseCost: 3 },
-      mortar: { id: 305, type: 'army', position: 'army_seige', minlevel: 14, baseTime: 2400, baseCost: 30 },
-      catapult: { id: 306, type: 'army', position: 'army_seige', minlevel: 8, baseTime: 1800, baseCost: 25 },
-      ram: { id: 307, type: 'army', position: 'army_seige', minlevel: 2, baseTime: 600, baseCost: 15 },
-      steamgiant: { id: 308, type: 'army', position: 'army_front_line', minlevel: 12, baseTime: 900, baseCost: 12 },
-      bombardier: { id: 309, type: 'army', position: 'army_air', minlevel: 11, baseTime: 1800, baseCost: 45 },
-      cook: { id: 310, type: 'army', position: 'army_support', minlevel: 5, baseTime: 1200, baseCost: 10 },
-      medic: { id: 311, type: 'army', position: 'army_support', minlevel: 9, baseTime: 1200, baseCost: 20 },
-      gyrocopter: { id: 312, type: 'army', position: 'army_air', minlevel: 10, baseTime: 900, baseCost: 15 },
-      archer: { id: 313, type: 'army', position: 'army_ranged', minlevel: 7, baseTime: 240, baseCost: 4 },
-      spearman: { id: 315, type: 'army', position: 'army_flank', minLevel: 1, baseTime: 60, baseCost: 1 },
-      spartan: { id: 319, type: 'army', position: 'army_front_line', minLevel: 0, baseTime: 0, baseCost: 0 },
-      ship_ram: { id: 210, type: 'fleet', position: 'navy_flank', minlevel: 1, baseTime: 2400, baseCost: 15 },
-      ship_flamethrower: { id: 211, type: 'fleet', position: 'navy_front_line', minlevel: 4, baseTime: 1800, baseCost: 25 },
-      ship_submarine: { id: 212, type: 'fleet', position: 'navy_seige', minlevel: 19, baseTime: 3600, baseCost: 50 },
-      ship_ballista: { id: 213, type: 'fleet', position: 'navy_ranged', minlevel: 3, baseTime: 3000, baseCost: 20 },
-      ship_catapult: { id: 214, type: 'fleet', position: 'navy_ranged', minlevel: 3, baseTime: 3000, baseCost: 35 },
-      ship_mortar: { id: 215, type: 'fleet', position: 'navy_ranged', minlevel: 17, baseTime: 3000, baseCost: 50 },
-      ship_steamboat: { id: 216, type: 'fleet', position: 'navy_front_line', minlevel: 15, baseTime: 2400, baseCost: 45 },
-      ship_rocketship: { id: 217, type: 'fleet', position: 'navy_seige', minlevel: 11, baseTime: 3600, baseCost: 55 },
-      ship_paddlespeedship: { id: 218, type: 'fleet', position: 'navy_air', minlevel: 13, baseTime: 1800, baseCost: 5 },
-      ship_ballooncarrier: { id: 219, type: 'fleet', position: 'navy_air', minlevel: 7, baseTime: 3900, baseCost: 100 },
-      ship_tender: { id: 220, type: 'fleet', position: 'navy_support', minlevel: 9, baseTime: 2400, baseCost: 100 }
-    },
-    Government: {
-      ANARCHY: 'anarchie',
-      XENOCRACY: 'xenokratie',
-      IKACRACY: 'ikakratie',
-      ARISTOCRACY: 'aristokratie',
-      DICTATORSHIP: 'diktatur',
-      DEMOCRACY: 'demokratie',
-      NOMOCRACY: 'nomokratie',
-      OLIGARCHY: 'oligarchie',
-      TECHNOCRACY: 'technokratie',
-      THEOCRACY: 'theokratie'
-    },
-    Buildings: {
-      TOWN_HALL: 'townHall',
-      PALACE: 'palace',
-      GOVERNORS_RESIDENCE: 'palaceColony',
-      TAVERN: 'tavern',
-      MUSEUM: 'museum',
-      ACADEMY: 'academy',
-      WORKSHOP: 'workshop',
-      TEMPLE: 'temple',
-      EMBASSY: 'embassy',
-      WAREHOUSE: 'warehouse',
-      DUMP: 'dump',
-      TRADING_PORT: 'port',
-      TRADING_POST: 'branchOffice',
-      SHRINEOFOLYMPUS: 'shrineOfOlympus',
-      CHRONOSFORGE: 'chronosForge',
-      DOCKYARD: 'dockyard',
-      WALL: 'wall',
-      HIDEOUT: 'safehouse',
-      BARRACKS: 'barracks',
-      SHIPYARD: 'shipyard',
-      FORESTER: 'forester',
-      CARPENTER: 'carpentering',
-      WINERY: 'winegrower',
-      VINEYARD: 'vineyard',
-      STONEMASON: 'stonemason',
-      ARCHITECT: 'architect',
-      GLASSBLOWER: 'glassblowing',
-      OPTICIAN: 'optician',
-      ALCHEMISTS_TOWER: 'alchemist',
-      FIREWORK_TEST_AREA: 'fireworker',
-      PIRATE_FORTRESS: 'pirateFortress',
-      BLACK_MARKET: 'blackMarket',
-      MARINE_CHART_ARCHIVE: 'marineChartArchive',
-    },
-    GovernmentData: {
-      anarchie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0.25,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      xenokratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      ikakratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      aristokratie: {
-        corruptionPalace: 3,
-        governors: 0.03,
-        corruption: 0,
-        spyprotection: 0.2,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: -0.2,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      diktatur: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: 0,
-        unitBuildTime: -0.02,
-        fleetBuildTime: -0.02,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: -75,
-        bonusShips: 2,
-        armySupply: -0.02,
-        fleetSupply: -0.02,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      demokratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: -0.2,
-        unitBuildTime: 0.05,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 75,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 1,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      nomokratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: -0.05,
-        spyprotection: 0.2,
-        unitBuildTime: 0.05,
-        fleetBuildTime: 0.05,
-        loadingSpeed: 0.5,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      oligarchie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0.03,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0.2,
-        happiness: 0,
-        bonusShips: 2,
-        armySupply: 0,
-        fleetSupply: -0.02,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0.1,
-        branchOfficeRange: 5,
-        researchBonus: 1,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      technokratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 1.05,
-        researcherCost: 1,
-        productivity: 0.2,
-        happinessWithoutTemple: 0,
-        goldBonusPerPriest: 0,
-        cooldownTime: 0,
-        happinessBonusWithTempleConversion: 0
-      },
-      theokratie: {
-        corruptionPalace: 0,
-        governors: 0,
-        corruption: 0,
-        spyprotection: 0,
-        unitBuildTime: 0,
-        fleetBuildTime: 0,
-        loadingSpeed: 0,
-        buildingTime: 0,
-        happiness: 0,
-        bonusShips: 0,
-        armySupply: 0,
-        fleetSupply: 0,
-        researchPerCulturalGood: 0,
-        tradeShipSpeed: 0,
-        branchOfficeRange: 0,
-        researchBonus: 0.95,
-        researcherCost: 0,
-        productivity: 0,
-        happinessWithoutTemple: -20,
-        goldBonusPerPriest: 1,
-        cooldownTime: -0.2,
-        happinessBonusWithTempleConversion: 2
-      }
-    },
-    BuildingData:
-    {
-      chronosForge:
-      {
-        buildingId: 35,
-        maxLevel: 50,
-        wood: [38489114838, 256977511153, 953188, 1710000, 2970000, 5060000, 8500000, 14090000, 23120000, 37620000, 60800000, 97680000, 156130000, 248440000, 393800000, 622030000, 979520000, 1540000000, 2410000000, 3770000000, 5870000000, 9140000000, 14210000000, 22040000000, 34150000000, 52830000000, 81630000000, 125970000000, 194190000000, 299050000000, 460070000000, 707140000000, 1090000000000, 1670000000000, 2550000000000, 3910000000000, 5990000000000, 9170000000000, 14020000000000, 21430000000000, 32730000000000, 49960000000000, 76230000000000, 116250000000000, 177200000000000, 269970000000000, 411140000000000, 625860000000000],
-        wine: [0, 84, 877, 178871335072, 588449992088, 1630000, 2610000, 4130000, 6440000, 9960000, 15260000, 23230000, 35140000, 52900000, 79270000, 118330000, 176030000, 261060000, 386070000, 569530000, 838270000, 1230000000, 1810000000, 2640000000, 3860000000, 5630000000, 8210000000, 11940000000, 17350000000, 25190000000, 36540000000, 52930000000, 76620000000, 110820000000, 160140000000, 231240000000, 333660000000, 481110000000, 693270000000, 998360000000, 1440000000000, 2070000000000, 2970000000000, 4270000000000, 6130000000000, 8800000000000, 12630000000000, 18110000000000, 25970000000000],
-        marble: [35212102979, 225878440397, 804982, 1410000, 2410000, 4030000, 6630000, 10760000, 17310000, 27620000, 43750000, 68900000, 107950000, 168380000, 261610000, 405040000, 625200000, 962330000, 1480000000, 2260000000, 3460000000, 5280000000, 8040000000, 12230000000, 18570000000, 28160000000, 42660000000, 64530000000, 97500000000, 147170000000, 221930000000, 334360000000, 503320000000, 757020000000, 1140000000000, 1710000000000, 2560000000000, 3850000000000, 5760000000000, 8630000000000, 12930000000000, 19340000000000, 28930000000000, 43240000000000, 64600000000000, 96480000000000, 144020000000000, 214890000000000],
-        glass: [0, 0, 152754283302, 492058822196, 1330000, 2120000, 3320000, 5130000, 7850000, 11910000, 17950000, 26880000, 40070000, 59450000, 87850000, 129390000, 189980000, 278160000, 406260000, 592000000, 860880000, 1250000000, 1810000000, 2620000000, 3780000000, 5460000000, 7860000000, 11310000000, 16260000000, 23350000000, 33490000000, 47990000000, 68720000000, 98320000000, 140560000000, 200800000000, 286650000000, 408950000000, 583050000000, 830790000000, 1180000000000, 1680000000000, 2400000000000, 3410000000000, 4840000000000, 6880000000000, 9760000000000, 13860000000000],
-        sulfur: [0, 0, 0, 237746405186, 662929, 1050000, 1640000, 2520000, 3820000, 5730000, 8520000, 12580000, 18470000, 26980000, 39240000, 56850000, 82070000, 118110000, 169510000, 242660000, 346610000, 494060000, 702900000, 998280000, 1420000000, 2000000000, 2830000000, 4000000000, 5640000000, 7950000000, 11190000000, 15740000000, 22100000000, 31020000000, 43510000000, 60970000000, 85370000000, 119460000000, 167050000000, 233450000000, 326060000000, 455140000000, 634980000000, 885420000000, 1230000000000, 1720000000000, 2390000000000, 3330000000000, 4640000000000],
-        // This might be correct for time. 
-        time: { a: 400, b: 1, c: 1.35, d: 60 },
-        dur: [528, 716, 985, 1363, 1885, 2599, 3566, 4860, 6540, 8880, 11880, 15900, 21120, 27900, 36780, 48300, 63180, 82440, 104400, 122400, 183600, 230400, 302400, 388800, 496800, 626400, 820800, 1047600, 1335600, 1706400, 2163600, 2678400, 2851200, 3153600, 3528000, 4147200, 5169600, 5616000, 6729600, 8834400, 23640000, 27187200, 36288000, 41990400, 47692800, 62985600, 78854400, 118540800, 132192000, 157680000],
-        icon: '/cdn/all/both/img/city/chronosForge_l.png'
-      },
-      shrineOfOlympus:
-      {
-        buildingId: 34,
-        maxLevel: 41,
-        wood: [890, 1116, 1400, 1755, 2201, 2760, 3461, 4340, 5442, 6824, 8558, 10732, 13457, 16876, 21162, 26537, 33277, 41730, 52329, 65621, 82289, 103190, 129400, 162268, 203484, 255169, 319982, 401258, 503177, 630984, 791254, 992233, 1244260, 1560302, 1956619, 2453600, 3076815, 3858325, 4838340, 6067278, 7608367],
-        wine: [0, 0, 124, 155, 194, 243, 305, 381, 478, 598, 749, 937, 1173, 1469, 1839, 2303, 2883, 3610, 4520, 5658, 7084, 8870, 11105, 13903, 17407, 21793, 27285, 34161, 42770, 53547, 67041, 83936, 105088, 131570, 164725, 206236, 258208, 323276, 404741, 506736, 634434],
-        marble: [0, 0, 0, 0, 231, 299, 386, 499, 646, 835, 1079, 1396, 1805, 2333, 3017, 3901, 5044, 6522, 8433, 10904, 14099, 18230, 23571, 30478, 39408, 50954, 65884, 85188, 110148, 142421, 184151, 238107, 307872, 398079, 514716, 665528, 860528, 1112662, 1438672, 1860203, 2405243],
-        glass: [0, 0, 0, 0, 0, 0, 0, 0, 268, 347, 448, 579, 749, 969, 1252, 1619, 2094, 2707, 3500, 4526, 5852, 7567, 9784, 12651, 16357, 21150, 27347, 35360, 45720, 59116, 76437, 98833, 127791, 165233, 213647, 276245, 357185, 461841, 597160, 772128, 998361],
-        sulfur: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 133, 178, 239, 320, 429, 575, 770, 1032, 1383, 1853, 2483, 3327, 4458, 5973, 8004, 10726, 14372, 19259, 25807, 34581, 46339, 62094, 83206, 111497, 149406, 200203, 268273, 359485, 481710, 645492, 864959],
-        time: { a: 48, b: 1, c: 1.25, d: 0 },
-        get dur() { var t = [], c = this.time; for (var i = 0; i < this.maxLevel; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; },
-        icon: '/cdn/all/both/img/city/shrineOfOlympus_l.png'
-      },
-      dockyard:
-      {
-        buildingId: 33,
-        maxLevel: 50,
-        wood: [504483, 605763, 727300, 873144, 1048157, 1258172, 1510191, 1812613, 2175519, 2611007, 3133593, 3760773, 4513481, 5416842, 6501009, 7802168, 9363751, 11237881, 13487113, 16186522, 19426211, 23314315, 27980612, 33580856, 40301974, 48368305, 58049091, 69667459, 83611213, 100345772, 120429707, 144533388, 173461356, 208179178, 249845678, 299851616, 359866107, 431892337, 518334422, 622077657, 746584820, 896011756, 1075346089, 1290573705, 1548878546, 1858882405, 2230932698, 2677447853, 3213331811, 3856471495],
-        wine: 0,
-        marble: [291703, 344555, 406921, 480512, 567350, 669818, 790731, 933409, 1101768, 1300432, 1534855, 1811536, 2138093, 2523518, 2978421, 3515328, 4149020, 4896945, 5779696, 6821575, 8051270, 9502636, 11215633, 13237425, 15623676, 18440085, 21764196, 25687530, 30318105, 35783412, 42233927, 49847246, 58832983, 69438540, 81955911, 96729733, 114166765, 134747092, 159037342, 187706285, 221543249, 261479849, 308615640, 364248387, 429909798, 507407694, 598875786, 706832418, 834249904, 984636364],
-        glass: [246865, 289158, 338642, 396537, 464275, 543528, 636254, 744743, 871676, 1020188, 1193946, 1397298, 1635285, 1913806, 2239765, 2621241, 3067690, 3590178, 4201655, 4917280, 5754789, 6734942, 7882035, 9224500, 10795613, 12634317, 14786189, 17304567, 20251874, 23701164, 27737937, 32462251, 37991209, 44461856, 52034581, 60897089, 71269056, 83407573, 97613516, 114239010, 133696151, 156467225, 183116658, 214305012, 250805354, 293522418, 343515036, 402022375, 470494660, 550629117],
-        sulfur: 0,
-        time: [{ a: 125660, b: 37, c: 1.06, d: 2808 }, { a: 125031, b: 56, c: 1.069394, d: 0 }],
-        dur: [271230, 316800, 370800, 435600, 507600, 594000, 698400, 817200, 957600, 1119600, 1310400, 1533600, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000, 1728000],
-        icon: '/cdn/all/both/img/city/dockyard_l_small.png'
-      },
-      academy:
-      {
-        buildingId: 4,
-        maxLevel: 50,
-        wood: [64, 68, 115, 263, 382, 626, 982, 1330, 2004, 2665, 3916, 5156, 7446, 9753, 12751, 18163, 23691, 33451, 43572, 56729, 73833, 103459, 144203, 175058, 243930, 317208, 439968, 536310, 743789, 1027470, 1257246, 1736683, 2398948, 3313760, 4577426, 6322978, 8734177, 12064860, 16665662, 23020930, 31799710, 43926182, 60676950, 83815441, 115777543, 159928042, 220914850, 305158310, 421527091, 582271834],
-        wine: 0,
-        marble: 0,
-        glass: [0, 0, 0, 0, 225, 428, 744, 1089, 1748, 2454, 3786, 5216, 7862, 10729, 14599, 21627, 29322, 43020, 58213, 78724, 106414, 154857, 224146, 282572, 408877, 552141, 795252, 1006648, 1449741, 2079651, 2642548, 3790583, 5437373, 7799598, 11188075, 16048650, 23020865, 33022105, 47368310, 67947114, 97466224, 139809688, 200548951, 287675926, 412654558, 591929211, 849088381, 1217968409, 1747105576, 2506122386],
-        sulfur: 0,
-        maxScientists: [0, 8, 12, 16, 22, 28, 35, 43, 51, 60, 69, 79, 89, 100, 111, 122, 134, 146, 159, 172, 185, 198, 212, 227, 241, 256, 271, 287, 302, 318, 335, 351, 368, 385, 404, 424, 444, 466, 488, 512, 537, 563, 590, 619, 649, 680, 713, 748, 784, 822, 862],
-        time: { a: 1440, b: 1, c: 1.2, d: 720, e: [983] },
-        dur: (() => { var t = []; var c = { a: 1440, b: 1, c: 1.2, d: 720, e: [983] }; for (var i = 0; i < 50; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/academy_l.png'
-      },
-      alchemist:
-      {
-        buildingId: 22,
-        maxLevel: 61,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72051, 93778, 122022, 158740, 206472, 268525, 349194, 454063, 590393, 767621, 998019, 1297536, 1686907, 2193090, 2851161, 3706696, 4818949, 6264951, 8144848, 10588838, 13766186, 17896947, 23267208, 30248900, 39325559, 51125812, 66466917, 86411362, 112340452, 146049973, 189874567, 246849419, 320920474, 417217714, 542410456, 705169252, 916766387, 1191856573, 1549491900, 2014441336, 2618906170, 3404750192, 4426399083],
-        wine: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51831, 67485, 87835, 114290, 148681, 193390, 251512, 327069, 425295, 552987, 718988, 934789, 1215330, 1580064, 2054260, 2670767, 3472295, 4514372, 5869187, 7630598, 9920629, 12897924, 16768741, 21801234, 28344037, 36850411, 47909647, 62287886, 80981202, 105284598, 136881725, 177961516, 231369827, 300806590, 391082130, 508450405, 661042257, 859428691, 1117353190, 1452683817, 1888651047, 2455457089],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        dur: (() => { var t = []; var c = { a: 72000, b: 11, c: 1.1, d: 6120 }; for (var i = 0; i < 61; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/alchemist_l.png'
-      },
-      architect:
-      {
-        buildingId: 24,
-        maxLevel: 50,
-        wood: [185, 291, 413, 555, 720, 911, 1133, 1390, 1689, 2035, 2437, 2902, 3443, 4070, 4797, 5640, 6619, 7754, 9070, 10598, 12369, 14424, 16808, 19573, 22781, 26502, 30818, 35825, 41633, 48371, 56186, 65252, 75780, 88008, 102209, 118701, 137854, 160098, 185931, 215933, 250775, 291239, 338233, 392809, 456192, 529802, 615289, 714570, 829871, 963777, 320920474, 417217714, 542410456, 705169252, 916766387, 1191856573, 1549491900, 2014441336, 2618906170, 3404750192, 4426399083],
-        wine: 0,
-        marble: [106, 160, 222, 295, 379, 475, 587, 716, 865, 1036, 1233, 1460, 1722, 2023, 2369, 2767, 3226, 3753, 4359, 5056, 5857, 6778, 7836, 9052, 10449, 12055, 13899, 16017, 18451, 21246, 24455, 28141, 32382, 37263, 42880, 49343, 56780, 65338, 75186, 86519, 99560, 114566, 131834, 151705, 174571, 200884, 231162, 266004, 306098, 352235, 177961516, 231369827, 300806590, 391082130, 508450405, 661042257, 859428691, 1117353190, 1452683817, 1888651047, 2455457089],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2628 },
-        dur: (() => { var t = []; var f = [{ a: 125660, b: 37, c: 1.06, d: 2628 }, { a: 156455, b: 68, c: 1.068703, d: 0, e: { 37: -1, 43: 1, 48: 1, 49: 1 } }]; for (var i = 0; i < 50; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = i < 32 ? Math.round(g) : Math.floor(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/architect_l.png'
-      },
-      barracks:
-      {
-        buildingId: 6,
-        maxLevel: 49,
-        wood: [49, 114, 195, 296, 420, 574, 766, 1003, 1297, 1662, 2115, 2676, 3371, 4234, 5304, 6630, 8275, 10314, 12843, 15979, 19868, 24690, 30669, 38083, 47277, 58676, 72812, 90341, 112076, 139028, 172448, 213889, 265276, 328996, 408008, 505984, 627473, 778120, 964923, 1196558, 1483785, 1839947, 2281588, 2829223, 3508290, 4350333, 5394466, 6689191, 8294651, 10285438, 12753995, 15815008, 19610663, 24317276],
-        wine: 0,
-        marble: [0, 0, 0, 0, 0, 0, 0, 0, 178, 431, 745, 1134, 1616, 2214, 2956, 3875, 5015, 6429, 8183, 10357, 13052, 16395, 20540, 25680, 32054, 39957, 49757, 61909, 76977, 95661, 118830, 147560, 183185, 227359, 282136, 350059, 434283, 538721, 668224, 828808, 1027932, 1274847, 1581020, 1960675, 2431447, 3015205, 3739064, 4636650, 5749656, 7129795, 8841156, 10963244, 13594633, 16857554],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 25200, b: 11, c: 1.1, d: 1728, e: [732] },
-        dur: (() => { var t = []; var c = { a: 25200, b: 11, c: 1.1, d: 1728, e: [732] }; for (var i = 0; i < 49; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/barracks_r.png'
-      },
-      blackMarket:
-      {
-        buildingId: 31,
-        maxLevel: 25,
-        wood: [440, 887, 1360, 1890, 2516, 3288, 4263, 5505, 7086, 9086, 11590, 14691, 18489, 23088, 28600, 35143, 42839, 51820, 62218, 74175, 87838, 103356, 120888, 140596, 162647],
-        wine: 0,
-        marble: [260, 525, 807, 1126, 1509, 1988, 2601, 3390, 4403, 5693, 7315, 9331, 11807, 14812, 18420, 22708, 27757, 33654, 40486, 48348, 57334, 67546, 79087, 92064, 106587],
-        glass: 0,
-        sulfur: 0,
-        tax: (() => { var tax = []; for (var i = 0; i < 25; i++) { tax.push(-(i + 1) + 29 - (i == 23 ? 1 : (i == 24 ? 3 : 0))); } return tax; })(),
-        time: { a: 4321, b: 1, c: 1.1, d: 4627 },
-        dur: (() => { var t = []; var c = { a: 4321, b: 1, c: 1.1, d: 4627 }; for (var i = 0; i < 25; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/blackmarket_l.png'
-      },
-      branchOffice:
-      {
-        buildingId: 13,
-        maxLevel: 72,
-        wood: [48, 173, 346, 581, 896, 1314, 1863, 2580, 3509, 4706, 6241, 8203, 10699, 13866, 17872, 22926, 29286, 37273, 47283, 59807, 75448, 94955, 119245, 149454, 186977, 233530, 291226, 362658, 451015, 560208, 695038, 861391, 1066671, 1319986, 1632576, 2018313, 2494313, 3081696, 3806527, 4701842, 5807739, 7173750, 8861054, 10945220, 13519593, 16699472, 20627275, 25478918, 31471693, 38874000, 48017368, 59311304, 73261632, 90493151, 111777613, 138068292, 170542676, 210655204, 260202409, 321403375, 396999129, 490375398, 605714254, 748181411, 924157588, 1141524281, 1410016756, 1741660064, 2151307610, 2657306400, 3282318749, 4054337268],
-        wine: 0,
-        marble: [0, 0, 0, 0, 540, 792, 1123, 1555, 2115, 2837, 3762, 4945, 6450, 8359, 10774, 13820, 17654, 22469, 28503, 36052, 45482, 57240, 71883, 90093, 112713, 140776, 175556, 218616, 271879, 337703, 418980, 519261, 643008, 795711, 984147, 1216678, 1503620, 1857706, 2294649, 2834363, 3501021, 4324482, 5341624, 6598005, 8149893, 10066794, 12434562, 15359241, 18971822, 23434103, 28945937, 35754186, 44163773, 54551344, 67382130, 83230789, 102807143, 126987967, 156856259, 193749742, 239320781, 295610388, 365139630, 451022544, 557105608, 688140010, 849994448, 1049917969, 1296864638, 1601894565, 1978669263, 2444063509],
-        glass: 0,
-        sulfur: 0,
-        cap: (() => { var cap = []; for (var i = 0; i < 71; i++) { cap.push(i < 39 ? 400 * Math.pow(i + 1, 2) : 80218 * Math.pow(Math.exp(0.052), i + 1)); } return cap; })(),
-        time: { a: 108000, b: 11, c: 1.1, d: 9360 },
-        dur: (() => { var t = []; var c = { a: 108000, b: 11, c: 1.1, d: 9360 }; for (var i = 0; i < 72; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/branchoffice_l.png'
-      },
-      carpentering:
-      {
-        buildingId: 23,
-        maxLevel: 50,
-        wood: [63, 122, 192, 274, 372, 486, 620, 777, 962, 1178, 1432, 1730, 2078, 2486, 2964, 3524, 4178, 4945, 5841, 6890, 8117, 9551, 11229, 13190, 15484, 18165, 21299, 24963, 29245, 34249, 40096, 46930, 54928, 64290, 75248, 88074, 103085, 120655, 141220, 165290, 193462, 226436, 265030, 310202, 363073, 424955, 497385, 582160, 681384, 797520],
-        wine: 0,
-        marble: [0, 0, 0, 0, 0, 0, 0, 359, 444, 546, 669, 816, 993, 1205, 1459, 1765, 2131, 2571, 3098, 3731, 4491, 5402, 6496, 7809, 9384, 11275, 13543, 16265, 19531, 23451, 28154, 33799, 40575, 48711, 58478, 70203, 84279, 101178, 121464, 145818, 175056, 210155, 252292, 302878, 363607, 436512, 524034, 629105, 755244, 906674],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2808 },
-        dur: (() => { var t = []; var f = [{ a: 125660, b: 37, c: 1.06, d: 2808 }, { a: 125031, b: 56, c: 1.069394, d: 0 }]; for (var i = 0; i < 50; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = i < 32 ? Math.round(g) : Math.floor(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/carpentering_l.png'
-      },
-      dump:
-      {
-        buildingId: 29,
-        maxLevel: 80,
-        wood: [640, 1152, 1766, 2504, 3388, 4450, 5724, 7253, 9088, 11289, 13931, 17101, 20905, 25470, 30948, 37522, 45410, 54876, 66236, 79867, 96224, 115853, 139408, 167673, 201592, 242294, 291137, 349749, 420082, 504483, 605763, 727300, 873144, 1048157, 1258172, 1510191, 1812613, 2175519, 2611007, 3133593, 3760773, 4513481, 5416842, 6501009, 7802168, 9363751, 11237881, 13487113, 16186522, 19426211, 23314315, 27980612, 33580856, 40301974, 48368305, 58049091, 69667459, 83611213, 100345772, 120429707, 144533388, 173461356, 208179178, 249845678, 299851616, 359866107, 431892337, 518334422, 622077657, 746584820, 896011756, 1075346089, 1290573705, 1548878546, 1858882405, 2230932698, 2677447853, 3213331811, 3856471495, 4628333851],
-        wine: 0,
-        marble: [497, 932, 1445, 2051, 2762, 3609, 4604, 5778, 7164, 8799, 10728, 13005, 15691, 18862, 22602, 27016, 32225, 38371, 45623, 54181, 64279, 76195, 90256, 106847, 126425, 149528, 176788, 208956, 246913, 291703, 344555, 406921, 480512, 567350, 669818, 790731, 933409, 1101768, 1300432, 1534855, 1811536, 2138093, 2523518, 2978421, 3515328, 4149020, 4896945, 5779696, 6821575, 8051270, 9502636, 11215633, 13237425, 15623676, 18440085, 21764196, 25687530, 30318105, 35783412, 42233927, 49847246, 58832983, 69438540, 81955911, 96729733, 114166765, 134747092, 159037342, 187706285, 221543249, 261479849, 308615640, 364248387, 429909798, 507407694, 598875786, 706832418, 834249904, 984636364, 1162132312],
-        glass: [701, 1146, 1668, 2278, 2991, 3526, 4803, 5946, 7283, 8847, 10678, 12819, 15325, 18257, 21687, 25700, 30395, 35889, 42316, 49837, 58635, 68930, 80974, 95066, 111554, 130844, 153414, 179821, 201717, 246865, 289158, 338642, 396537, 464275, 543528, 636254, 744743, 871676, 1020188, 1193946, 1397298, 1635285, 1913806, 2239765, 2621241, 3067690, 3590178, 4201655, 4917280, 5754789, 6734942, 7882035, 9224500, 10795613, 12634317, 14786189, 17304567, 20251874, 23701164, 27737937, 32462251, 37991209, 44461856, 52034581, 60897089, 71269056, 83407573, 97613516, 114239010, 133696151, 156467225, 183116658, 214305012, 250805354, 293522418, 343515036, 402022375, 470494660, 550629117, 644412042],
-        sulfur: [384, 845, 1398, 2061, 2858, 3813, 4960, 6336, 7987, 9968, 12346, 15199, 18623, 22731, 27661, 33578, 40677, 49197, 59420, 71688, 86410, 104076, 125275, 150714, 181241, 217873, 261831, 314582, 377882, 453843, 544995, 654378, 785638, 943149, 1132163, 1358980, 1631160, 1957775, 2349715, 2820041, 3384508, 4061962, 4875016, 5850814, 7021931, 8427462, 10114328, 12138842, 14568589, 17484682, 20984469, 25184783, 30225845, 36275940, 43537042, 52251547, 62710373, 75262669, 90327471, 108407688, 130106896, 156149483, 187404832, 224916345, 269936275, 323967529, 388813842, 466639986, 560044045, 672144141, 806682527, 968150521, 1161938432, 1394515513, 1673645920, 2008647905, 2410704893, 2893238813, 3472358170, 4167395793],
-        cp: [32000, 65401, 101073, 139585, 181437, 227119, 277128, 331991, 392268, 458564, 531535, 611896, 700427, 797983, 905498, 1024000, 1154614, 1298578, 1457248, 1632119, 1824830, 2037185, 2271165, 2528951, 2812939, 3125764, 3470326, 3849813, 4267731, 4727939, 5234678, 5792619, 6406896, 7083160, 7827629, 8647143, 9549229, 10542172, 11635086, 12838003, 14161964, 15619122, 17222851, 18987875, 20930401, 23068269, 25421121, 28010583, 30860463, 33996977, 37448993, 41248299, 45429902, 50032358, 55098129, 60673986, 66811447, 73567262, 81003948, 89190382, 98202448, 108123754, 119046431, 131072000, 144312338, 158890744, 174943109, 192619216, 212084166, 233519956, 257127222, 283127160, 311763649, 343305589, 378049493, 416322336, 458484710, 504934306, 556109751, 612494861],
-        time: { a: 32000, b: 13, c: 1.17, d: 2160 },
-        dur: (() => { var t = []; var c = { a: 32000, b: 13, c: 1.17, d: 2160 }; for (var i = 0; i < 80; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/dump_r.png'
-      },
-      embassy:
-      {
-        buildingId: 12,
-        maxLevel: 78,
-        wood: [242, 415, 623, 873, 1173, 1532, 1964, 2482, 3103, 3849, 4743, 5817, 7105, 8651, 10507, 12733, 15404, 18610, 22457, 27074, 32614, 39261, 47239, 56811, 68299, 82084, 98625, 118475, 142295, 170879, 205180, 246341, 295759, 355091, 426325, 511850, 614532, 737813, 885825, 1063530, 1276884, 1533039, 1840581, 2209819, 2653129, 3185371, 3824386, 4591594, 5512710, 6618610, 7946365, 9540479, 11454387, 13752243, 16511069, 19823342, 23800088, 28574605, 34306934, 41189221, 49452159, 59372718, 71283433, 85583548, 102752396, 123365475, 148113727, 177826706, 213500383, 256330529, 307752797, 369490846, 443614117, 532607199, 639453115, 767733306, 921747687, 1106658773],
-        wine: 0,
-        marble: [155, 342, 571, 850, 1190, 1606, 2112, 2730, 3484, 4404, 5527, 6896, 8566, 10604, 13090, 16123, 19824, 24339, 29846, 36566, 44764, 54765, 66967, 81853, 100014, 122170, 149201, 182178, 222411, 271495, 331377, 404433, 493595, 602413, 735223, 897312, 1095135, 1336570, 1631233, 1990858, 2429766, 2965437, 3619203, 4417100, 5390902, 6579391, 8029896, 9800182, 11960748, 14597638, 17815861, 21743579, 26537210, 32387654, 39527897, 48242292, 58877879, 71858208, 87700204, 107034757, 130631842, 159431185, 194579686, 237477091, 289831740, 353728594, 431712268, 526888372, 643047178, 784814575, 957836281, 1169002678, 1426723219, 1741261318, 2125143080, 2593656142, 3165458480, 3863321442],
-        glass: 0,
-        sulfur: 0,
-        dp: (() => { var dp = []; for (var i = 0; i < 78; i++) { dp.push(i + 3); } return dp; })(),
-        time: { a: 96000, b: 7, c: 1.05, d: 10080 },
-        dur: (() => { var t = []; var c = { a: 96000, b: 7, c: 1.05, d: 10080 }; for (var i = 0; i < 78; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/embassy_l.png'
-      },
-      fireworker:
-      {
-        buildingId: 27,
-        maxLevel: 50,
-        wood: [273, 353, 445, 551, 673, 813, 974, 1159, 1373, 1618, 1899, 2223, 2596, 3025, 3517, 4084, 4736, 5486, 6347, 7339, 8479, 9790, 11297, 13031, 15025, 17318, 19955, 22987, 26474, 30484, 35096, 40400, 46505, 53533, 61624, 70937, 81658, 93999, 108205, 124557, 143382, 165051, 189995, 218708, 251761, 289810, 333608, 384026, 442063, 508872],
-        wine: 0,
-        marble: [135, 212, 302, 405, 526, 665, 827, 1015, 1233, 1486, 1779, 2120, 2514, 2972, 3503, 4119, 4834, 5662, 6624, 7739, 9033, 10534, 12275, 14294, 16637, 19354, 22507, 26163, 30405, 35325, 41033, 47653, 55341, 64269, 74638, 86679, 100664, 116904, 135765, 157668, 183106, 212647, 246954, 286796, 333066, 386801, 449205, 521677, 605841, 703583],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2628 },
-        dur: (() => { var t = []; var f = [{ a: 125660, b: 37, c: 1.06, d: 2628 }, { a: 156455, b: 68, c: 1.068703, d: 0, e: { 37: -1, 43: 1, 48: 1, 49: 1 } }]; for (var i = 0; i < 50; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = i < 32 ? Math.round(g) : Math.floor(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/fireworker_l.png'
-      },
-      forester:
-      {
-        buildingId: 18,
-        maxLevel: 61,
-        wood: [250, 430, 664, 968, 1364, 1878, 2546, 3415, 4544, 6013, 7922, 10403, 13629, 17823, 23274, 30362, 39575, 51552, 67123, 87365, 113680, 147889, 192360, 250173, 325330, 423035, 550050, 715170, 929826, 1208879, 1571647, 2043247, 2656358, 3453445, 4489711, 5836927, 7588399, 9865430, 12825724, 16674305, 21677721, 28182498, 36639146, 47633359, 61926577, 80508723, 104666764, 136073846, 176905169, 229988640, 299000730, 388721096, 505363618, 657006755, 854153052, 1110456522, 1443668303, 1876866070, 2440052358, 3172232480, 4124115974],
-        wine: 0,
-        marble: [0, 104, 237, 410, 635, 928, 1309, 1803, 2446, 3282, 4368, 5781, 7617, 10004, 13108, 17142, 22387, 29204, 38068, 49590, 64569, 84042, 109357, 142266, 185047, 240664, 312965, 406956, 529145, 687990, 894489, 1162938, 1511952, 1965711, 2555649, 3322636, 4319807, 5616243, 7301758, 9493121, 12342143, 16046197, 20861892, 27122845, 35262801, 45845674, 59604620, 77492822, 100749532, 130985914, 170296669, 221405146, 287852011, 374240536, 486555497, 632577793, 822423477, 1069244578, 1390140238, 1807341295, 2349750384],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        dur: (() => { var t = []; var c = { a: 72000, b: 11, c: 1.1, d: 6120 }; for (var i = 0; i < 61; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/forester_l.png'
-      },
-      glassblowing:
-      {
-        buildingId: 20,
-        maxLevel: 61,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72051, 93778, 122022, 158740, 206472, 268525, 349194, 454063, 590393, 767621, 998019, 1297536, 1686907, 2193090, 2851161, 3706696, 4818949, 6264951, 8144848, 10588838, 13766186, 17896947, 23267208, 30248900, 39325559, 51125812, 66466917, 86411362, 112340452, 146049973, 189874567, 246849419, 320920474, 417217714, 542410456, 705169252, 916766387, 1191856573, 1549491900, 2014441336, 2618906170, 3404750192, 4426399083],
-        wine: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51831, 67485, 87835, 114290, 148681, 193390, 251512, 327069, 425295, 552987, 718988, 934789, 1215330, 1580064, 2054260, 2670767, 3472295, 4514372, 5869187, 7630598, 9920629, 12897924, 16768741, 21801234, 28344037, 36850411, 47909647, 62287886, 80981202, 105284598, 136881725, 177961516, 231369827, 300806590, 391082130, 508450405, 661042257, 859428691, 1117353190, 1452683817, 1888651047, 2455457089],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        dur: (() => { var t = []; var c = { a: 72000, b: 11, c: 1.1, d: 6120 }; for (var i = 0; i < 61; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/glassblowing_l.png'
-      },
-      marineChartArchive:
-      {
-        buildingId: 32,
-        maxLevel: 40,
-        wood: [578, 1298, 2133, 3102, 4226, 5530, 7042, 8796, 10831, 13191, 15929, 19106, 22790, 27064, 32022, 37773, 44444, 52183, 61159, 71572, 83651, 97663, 113917, 132771, 154642, 180012, 209442, 243580, 283180, 329116, 382402, 444214, 515916, 599090, 695572, 807491, 937317, 1087916, 1262610, 1465255],
-        wine: 0,
-        marble: [346, 1066, 1916, 2918, 4101, 5497, 7144, 9088, 11381, 14088, 17281, 21050, 25496, 30743, 36935, 44241, 52862, 63035, 75039, 89204, 105918, 125641, 148914, 176377, 208782, 247021, 292142, 345385, 408212, 482348, 569829, 673055, 794863, 938596, 1108201, 1308335, 1544493, 1823160, 2151986, 2540001],
-        glass: [161, 611, 1142, 1769, 2508, 3380, 4410, 5625, 7058, 8750, 10746, 13101, 15880, 19159, 23029, 27595, 32984, 39342, 46844, 55697, 66144, 78470, 93016, 110180, 130434, 154333, 182533, 215810, 255077, 301412, 356088, 420604, 496734, 586567, 692571, 817654, 965253, 1139420, 1344936, 1587446],
-        sulfur: 0,
-        durs: [[36, 5965, 346, 23655, 1252, 58749], [71, 5930, 680, 23321, 2447, 57554], [106, 5895, 1004, 22997, 3590, 56411], [140, 5861, 1318, 22683, 4683, 55318], [174, 5827, 1622, 22379, 5731, 54270], [207, 5794, 1918, 22083, 6737, 53264], [240, 5761, 2204, 21797, 7702, 52299], [272, 5729, 2483, 21518, 8629, 51372], [304, 5697, 2753, 21248, 9522, 50479], [335, 5666, 3016, 20985, 10380, 49621], [366, 5635, 3272, 20729, 11208, 48793], [217, 5604, 3521, 20480, 12006, 47995], [427, 5574, 3763, 20238, 12776, 47225], [457, 5544, 3999, 20002, 13519, 46482], [486, 5515, 4228, 19773, 14237, 45764], [515, 5486, 4452, 19549, 14931, 45070], [543, 5458, 4670, 19331, 15603, 44398], [571, 5430, 4883, 19118, 16254, 43747], [599, 5402, 5091, 18910, 16883, 43118], [627, 5374, 5293, 18708, 17494, 42507], [654, 5347, 5491, 18510, 18086, 41915], [680, 5321, 5684, 18317, 18660, 41341], [707, 5294, 5872, 18129, 19218, 40783], [733, 5268, 6057, 17944, 19759, 40242], [758, 5243, 6237, 17764, 20285, 39716], [784, 5217, 6413, 17588, 20796, 39205], [809, 5192, 6585, 17416, 21293, 38708], [834, 5167, 6753, 17248, 21777, 38224], [858, 5143, 6918, 17083, 22248, 37753], [882, 5119, 7079, 16922, 22706, 37295], [906, 5095, 7237, 16764, 23152, 36849], [930, 5071, 7391, 16610, 23587, 36414], [953, 5048, 7542, 16459, 24011, 35990], [976, 5025, 7691, 16310, 24425, 35576], [999, 5002, 7836, 16165, 24828, 35173], [1021, 4980, 7978, 16023, 25222, 34779], [1043, 4958, 8118, 15883, 25606, 34395], [1065, 4936, 8254, 15747, 25981, 34020], [1087, 4914, 8388, 15613, 26347, 33654], [1108, 4893, 8520, 15481, 26705, 33296]],
-        time: { a: 1472465, b: 509, c: 1.12, d: 504.5 },
-        dur: (() => { var t = []; var c = { a: 1472465, b: 509, c: 1.12, d: 504.5 }; for (var i = 0; i < 40; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/marinechartarchive_l.png'
-      },
-      museum:
-      {
-        buildingId: 10,
-        maxLevel: 36,
-        wood: [560, 1435, 2748, 4716, 7669, 12099, 18744, 28710, 43661, 66086, 99724, 150181, 225866, 339394, 509686, 765124, 1148281, 1723017, 2585121, 3878276, 5818009, 8727906, 13093198, 19641805, 29465722, 44203104, 66311437, 99477330, 149231256, 223869780, 335839016, 503810048, 755792366, 1133804502, 1700880700, 2551581997],
-        wine: 0,
-        marble: [280, 1190, 2573, 4676, 7871, 12729, 20112, 31335, 48394, 74323, 113736, 173643, 264701, 403110, 613492, 933272, 1419338, 2158158, 3281165, 4988136, 7582731, 11526912, 17522673, 26637149, 40492547, 61554876, 93572844, 142245060, 216234287, 328709247, 499688421, 759602961, 1154712888, 1755340514, 2668386534, 4056356382],
-        glass: 0,
-        sulfur: 0,
-        lf: [0, 20, 41, 63, 88, 114, 144, 176, 211, 250, 294, 341, 395, 453, 518, 590, 670, 759, 857, 965, 1086, 1219, 1367, 1530, 1711, 1912, 2134, 2380, 2652, 2953, 3286, 3655, 4064, 4516, 5016, 5569, 6182],
-        time: { a: 18000, b: 1, c: 1.1, d: 14040 },
-        dur: (() => { var t = []; var c = { a: 18000, b: 1, c: 1.1, d: 14040 }; for (var i = 0; i < 36; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/museum_r.png'
-      },
-      optician:
-      {
-        buildingId: 25,
-        maxLevel: 50,
-        wood: [119, 188, 269, 362, 471, 597, 742, 912, 1108, 1335, 1600, 1906, 2261, 2673, 3152, 3706, 4350, 5096, 5962, 6966, 8131, 9482, 11050, 12868, 14978, 17424, 20263, 23555, 27374, 31805, 36944, 42905, 49827, 57867, 67204, 78048, 90641, 105266, 122251, 141977, 164886, 191490, 222388, 258271, 299943, 348340, 404545, 469820, 545626, 633665],
-        wine: 0,
-        marble: [0, 35, 96, 167, 249, 345, 455, 584, 733, 905, 1106, 1338, 1608, 1921, 2283, 2704, 3192, 3759, 4416, 5178, 6062, 7087, 8276, 9656, 11257, 13113, 15267, 17765, 20663, 24025, 27924, 32448, 37704, 43813, 50911, 59160, 68744, 79882, 92823, 107862, 125337, 145643, 169239, 196657, 228518, 265541, 308562, 358552, 416642, 484142],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2772 },
-        dur: (() => { var t = []; var f = [{ a: 125660, b: 37, c: 1.06, d: 2772 }, { a: 168457, b: 75, c: 1.069256, d: 0, e: { 39: -1, 44: -1, 50: 1 } }]; for (var i = 0; i < 50; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = Math.round(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/optician_l.png'
-      },
-      palace:
-      {
-        buildingId: 11,
-        maxLevel: 20,
-        wood: [712, 5824, 16048, 36496, 77392, 159184, 322768, 649936, 1304272, 2612944, 4743518, 8611345, 15632968, 28379968, 51520771, 93530403, 169794358, 308243344, 559582545, 1015861754],
-        wine: [0, 0, 0, 10898, 22110, 44534, 89382, 179078, 358470, 717254, 1434822, 2870272, 5741800, 11486115, 22977258, 45964577, 91949276, 183938806, 367958137, 736077360],
-        marble: [0, 1434, 4546, 10770, 23218, 48114, 97906, 197490, 396658, 794994, 1591666, 3186691, 6380109, 12773685, 25574331, 51202643, 102513360, 205243096, 410919400, 822706132],
-        glass: [0, 0, 0, 0, 21188, 42400, 84824, 169672, 339368, 678760, 1357544, 2715136, 5430368, 10860928, 21722240, 43445248, 86892032, 173787137, 347580419, 695173129],
-        sulfur: [0, 0, 3089, 10301, 24725, 53573, 111269, 226661, 457445, 919013, 1842149, 3692562, 7401691, 14836588, 29739739, 59612900, 119493244, 239522576, 480119730, 962393438],
-        time: { a: 11520, b: 1, c: 1.4, d: 0 },
-        dur: (() => { var t = []; var c = { a: 11520, b: 1, c: 1.4, d: 0 }; for (var i = 0; i < 20; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/palace_l.png'
-      },
-      palaceColony:
-      {
-        buildingId: 17,
-        maxLevel: 20,
-        wood: [712, 5824, 16048, 36496, 77392, 159184, 322768, 649936, 1304272, 2612944, 4743518, 8611345, 15632968, 28379968, 51520771, 93530403, 169794358, 308243344, 559582545, 1015861754],
-        wine: [0, 0, 0, 10898, 22110, 44534, 89382, 179078, 358470, 717254, 1434822, 2870272, 5741800, 11486115, 22977258, 45964577, 91949276, 183938806, 367958137, 736077360],
-        marble: [0, 1434, 4546, 10770, 23218, 48114, 97906, 197490, 396658, 794994, 1591666, 3186691, 6380109, 12773685, 25574331, 51202643, 102513360, 205243096, 410919400, 822706132],
-        glass: [0, 0, 0, 0, 21188, 42400, 84824, 169672, 339368, 678760, 1357544, 2715136, 5430368, 10860928, 21722240, 43445248, 86892032, 173787137, 347580419, 695173129],
-        sulfur: [0, 0, 3089, 10301, 24725, 53573, 111269, 226661, 457445, 919013, 1842149, 3692562, 7401691, 14836588, 29739739, 59612900, 119493244, 239522576, 480119730, 962393438],
-        time: { a: 11520, b: 1, c: 1.4, d: 0 },
-        dur: (() => { var t = []; var c = { a: 11520, b: 1, c: 1.4, d: 0 }; for (var i = 0; i < 20; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/palaceColony_l.png'
-      },
-      pirateFortress:
-      {
-        buildingId: 30,
-        maxLevel: 30,
-        wood: [450, 906, 1389, 1935, 2593, 3427, 4516, 5950, 7834, 10284, 13430, 17415, 22394, 28534, 36015, 45029, 55779, 68482, 83366, 100671, 120648, 143562, 169686, 199309, 232729, 270255, 312210, 358926, 410748, 468032],
-        wine: 0,
-        marble: [250, 505, 783, 1112, 1534, 2103, 2883, 3949, 5388, 7296, 9782, 12964, 16970, 21938, 28019, 35370, 44162, 54573, 66793, 81020, 97463, 116341, 137883, 162325, 189915, 220912, 255580, 294197, 337048, 384429],
-        glass: 0,
-        sulfur: 0,
-        time: [40, 414, 817, 1253, 1721, 2228, 2779, 3370, 4010, 4702, 8989, 10487, 12150, 13997, 16045, 30528, 35449, 41058, 47455, 54745, 76684, 88880, 102906, 119034, 137585, 200203, 232974, 270994, 315090, 366246],
-        dur: [40, 414, 817, 1253, 1721, 2228, 2779, 3370, 4010, 4702, 8989, 10487, 12150, 13997, 16045, 30528, 35449, 41058, 47455, 54745, 76684, 88880, 102906, 119034, 137585, 200203, 232974, 270994, 315090, 366246],
-        icon: '/cdn/all/both/img/city/pirateFortress_l.png'
-      },
-      port:
-      {
-        buildingId: 3,
-        maxLevel: 74,
-        wood: [60, 150, 274, 429, 637, 894, 1207, 1645, 2106, 2735, 3537, 4492, 5689, 7103, 8850, 11094, 13731, 17062, 21097, 25965, 31810, 39190, 47998, 58713, 71955, 87627, 107102, 130777, 159020, 193938, 235849, 286515, 348718, 423990, 513947, 625161, 758178, 919694, 1116013, 1353517, 1642275, 1990224, 2411062, 2923229, 3541580, 4291524, 5199343, 6299199, 7631718, 9246113, 11202015, 13571663, 16442581, 19920807, 24134808, 29240229, 35425639, 42919496, 51998587, 62998247, 76324750, 92470310, 112031264, 135730097, 164442126, 199227831, 241372023, 292431299, 354291535, 429237542, 520037453, 630044966, 763323212, 924794828],
-        wine: 0,
-        marble: [0, 0, 0, 0, 0, 176, 326, 540, 791, 1138, 1598, 2176, 2928, 3859, 5051, 6628, 8566, 11089, 14265, 18241, 23197, 29642, 37636, 47703, 60556, 76367, 96639, 122157, 153754, 194090, 244301, 307174, 386956, 486969, 610992, 769303, 965794, 1212791, 1523572, 1913073, 2403314, 3015689, 3782993, 4749576, 5959027, 7478201, 9383420, 11774031, 14773697, 18537587, 23260403, 29186449, 36622272, 45952517, 57659826, 72349802, 90782339, 113910929, 142931982, 179346719, 225038829, 282371903, 354311707, 444579593, 557845001, 699967003, 878297384, 1102060943, 1382832675, 1735136536, 2177196745, 2731880500, 3427880866, 4301201034],
-        glass: 0,
-        sulfur: 0,
-        loadingSpeed: [30, 60, 93, 129, 169, 213, 261, 315, 373, 437, 508, 586, 672, 766, 869, 983, 1108, 1246, 1398, 1565, 1748, 1950, 2172, 2416, 2685, 2980, 3305, 3663, 4056, 4489, 4965, 5488, 6064, 6698, 7394, 8161, 9004, 9931, 10951, 12073, 13308, 14666, 16159, 17802, 19609, 21597, 23784, 26160, 28800, 31740, 34980, 38520, 42420, 46680, 51420, 56640, 62400, 68700, 75660, 83340, 91740, 101040, 111300, 122580, 134940, 148620, 163680, 180300, 198540, 218640, 240780, 265140, 292020, 321600],
-        time: { a: 50400, b: 23, c: 1.15, d: 1512, e: [588] },
-        dur: (() => { var t = []; var c = { a: 50400, b: 23, c: 1.15, d: 1512, e: [588] }; for (var i = 0; i < 74; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/port_r.png'
-      },
-      safehouse:
-      {
-        buildingId: 16,
-        maxLevel: 60,
-        wood: [113, 248, 402, 578, 779, 1007, 1267, 1564, 1903, 2288, 2728, 3230, 3801, 4453, 5195, 6042, 7008, 8108, 9363, 10793, 12423, 14282, 16401, 18816, 21570, 24709, 28288, 32368, 37019, 42321, 48365, 55255, 63126, 72119, 82393, 94131, 107540, 122860, 140363, 160359, 183204, 209303, 239119, 273184, 312102, 356563, 407359, 465390, 531689, 607433, 693967, 792828, 905773, 1034808, 1182226, 1350644, 1543054, 1762875, 2014012, 2300925],
-        wine: 0,
-        marble: [0, 0, 0, 129, 197, 275, 366, 471, 593, 735, 900, 1090, 1312, 1569, 1866, 2212, 2613, 3078, 3617, 4243, 4968, 5810, 6787, 7919, 9233, 10758, 12526, 14577, 16956, 19716, 22917, 26631, 30946, 35962, 41790, 48563, 56433, 65579, 76207, 88557, 102909, 119587, 138967, 161489, 187660, 218073, 253415, 294484, 342209, 397669, 462117, 537009, 624038, 725172, 842695, 979265, 1137968, 1322391, 1536701, 1785744],
-        glass: 0,
-        sulfur: 0,
-        spytime: { a: 900.12, b: -0.0513 }, // Seconds to create one spy per level (s): y = Math.round(a*exp(b*x))
-        time: { a: 96000, b: 7, c: 1.05, d: 12960 },
-        dur: (() => { var t = []; var f = [{ a: 96000, b: 7, c: 1.05, d: 12960 }, { a: 95959, b: 13, c: 1.06315467, d: 0 }]; for (var i = 0; i < 60; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = Math.round(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/safehouse_l.png'
-      },
-      shipyard:
-      {
-        buildingId: 5,
-        maxLevel: 38,
-        wood: [105, 202, 324, 477, 671, 914, 1222, 1609, 2096, 2711, 3485, 4460, 5689, 7238, 9190, 11648, 14746, 18650, 23568, 29765, 37573, 47412, 59808, 75428, 95108, 119906, 151151, 190520, 240124, 302626, 381378, 480605, 605632, 763166, 961659, 1211759, 1526886, 1923946],
-        wine: 0,
-        marble: [0, 0, 0, 0, 0, 778, 1052, 1397, 1832, 2381, 3071, 3942, 5038, 6420, 8161, 10354, 13118, 16601, 20989, 26517, 33484, 42261, 53321, 67256, 84814, 106938, 134814, 169937, 214192, 269954, 340214, 428741, 540286, 680832, 857920, 1081051, 1362196, 1716438],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 64800, b: 7, c: 1.05, d: 7128 },
-        dur: (() => { var t = []; var c = { a: 64800, b: 7, c: 1.05, d: 7128 }; for (var i = 0; i < 38; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/shipyard_l.png'
-      },
-      stonemason:
-      {
-        buildingId: 19,
-        maxLevel: 61,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72051, 93778, 122022, 158740, 206472, 268525, 349194, 454063, 590393, 767621, 998019, 1297536, 1686907, 2193090, 2851161, 3706696, 4818949, 6264951, 8144848, 10588838, 13766186, 17896947, 23267208, 30248900, 39325559, 51125812, 66466917, 86411362, 112340452, 146049973, 189874567, 246849419, 320920474, 417217714, 542410456, 705169252, 916766387, 1191856573, 1549491900, 2014441336, 2618906170, 3404750192, 4426399083],
-        wine: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51831, 67485, 87835, 114290, 148681, 193390, 251512, 327069, 425295, 552987, 718988, 934789, 1215330, 1580064, 2054260, 2670767, 3472295, 4514372, 5869187, 7630598, 9920629, 12897924, 16768741, 21801234, 28344037, 36850411, 47909647, 62287886, 80981202, 105284598, 136881725, 177961516, 231369827, 300806590, 391082130, 508450405, 661042257, 859428691, 1117353190, 1452683817, 1888651047, 2455457089],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        dur: (() => { var t = []; var c = { a: 72000, b: 11, c: 1.1, d: 6120 }; for (var i = 0; i < 61; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/stonemason_l.png'
-      },
-      temple:
-      {
-        buildingId: 28,
-        maxLevel: 56,
-        wood: [216, 228, 333, 465, 598, 760, 958, 1197, 1432, 1773, 2112, 2512, 3082, 3655, 4458, 5126, 6232, 7167, 8688, 10247, 11784, 14229, 16753, 19266, 23186, 26664, 32027, 36831, 43257, 50782, 59591, 68529, 80385, 96068, 108393, 129447, 148864, 174363, 204229, 239212, 280187, 328180, 384394, 450238, 527359, 617691, 723496, 847424, 992579, 1162599, 1361741, 1594995, 1868202, 2188208, 2563028, 3002050],
-        wine: 0,
-        marble: 0,
-        glass: [173, 190, 290, 423, 567, 752, 989, 1290, 1610, 2080, 2586, 3210, 4109, 5084, 6471, 7765, 9851, 11821, 14952, 18402, 22082, 27824, 34184, 41020, 51514, 61817, 77477, 92972, 113941, 139577, 170911, 205093, 251034, 313054, 368577, 459304, 551164, 673645, 823344, 1006309, 1229934, 1503253, 1837309, 2245600, 2744623, 3354540, 4099994, 5011105, 6124685, 7485728, 9149224, 11182387, 13667365, 16704560, 20416688, 24953734],
-        sulfur: 0,
-        priests: [12, 23, 37, 54, 73, 94, 117, 142, 168, 196, 225, 255, 287, 320, 355, 390, 427, 464, 503, 543, 583, 625, 668, 711, 756, 801, 848, 895, 943, 992, 1042, 1092, 1143, 1196, 1248, 1302, 1356, 1411, 1468, 1527, 1589, 1654, 1721, 1791, 1863, 1939, 2018, 2099, 2185, 2273, 2365, 2461, 2561, 2665, 2773, 2886],
-        time: { a: 2160, b: 1, c: 1.1, d: 0, e: { 33: 1, 36: 1 } },
-        dur: (() => { var t = []; var c = { a: 2160, b: 1, c: 1.1, d: 0, e: { 33: 1, 36: 1 } }; for (var i = 0; i < 56; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/temple_l.png'
-      },
-      tavern:
-      {
-        buildingId: 9,
-        maxLevel: 70,
-        wood: [101, 222, 367, 541, 750, 1001, 1302, 1663, 2097, 2617, 3241, 3990, 4888, 5967, 7261, 8814, 10678, 12914, 15598, 18818, 22683, 27320, 32885, 39562, 47576, 57192, 68731, 82578, 99194, 119134, 143061, 171774, 206230, 247577, 297193, 356732, 428179, 513916, 616800, 740261, 888414, 1066197, 1279538, 1535546, 1842756, 2211408, 2653790, 3184668, 3821746, 4586269, 5503731, 6604728, 7925973, 9511528, 11414265, 13697636, 16437785, 19726089, 23672202, 28407718, 34090551, 40910209, 49094109, 58915159, 70700866, 84844249, 101816951, 122184964, 146627504, 175959663],
-        wine: 0,
-        marble: [0, 0, 0, 94, 122, 158, 206, 267, 348, 452, 587, 764, 993, 1290, 1677, 2181, 2835, 3685, 4791, 6228, 8097, 10526, 13684, 17789, 23125, 30063, 39082, 50806, 66048, 85862, 111621, 145107, 188640, 245232, 318801, 414441, 538774, 700406, 910528, 1183686, 1538792, 2000429, 2600558, 3380726, 4394943, 5713427, 7427454, 9655688, 12552393, 16318109, 21213538, 27577596, 35850869, 46606124, 60587952, 78764326, 102393609, 133111672, 173045148, 224958659, 292446213, 380180021, 494233954, 642504045, 835255135, 1085831515, 1411580761, 1835054717, 2385570779, 3101241554],
-        glass: 0,
-        sulfur: 0,
-        wineUse: [0, 4, 8, 13, 18, 24, 30, 37, 44, 51, 60, 68, 78, 88, 99, 110, 122, 136, 150, 165, 180, 197, 216, 235, 255, 277, 300, 325, 351, 378, 408, 439, 472, 507, 544, 584, 626, 670, 717, 766, 818, 874, 933, 995, 1060, 1129, 1203, 1280, 1361, 1449, 1541, 1640, 1745, 1857, 1976, 2102, 2237, 2380, 2532, 2694, 2867, 3050, 3246, 3453, 3675, 3910, 4160, 4426, 4710, 5011, 5332],
-        wineUse2: [0, 12, 24, 36, 48, 61, 73, 86, 99, 112, 125, 138, 152, 165, 179, 193, 207, 222, 236, 251, 266, 282, 297, 313, 329, 345, 361, 378, 395, 412, 430, 448, 466, 484, 502, 521, 540, 560, 580, 600, 620, 641, 662, 683, 705, 727, 749, 772, 795, 819, 843, 867, 891, 916, 942, 968, 994, 1021, 1048, 1075, 1103, 1131, 1160, 1189, 1219, 1249, 1280, 1311, 1343, 1375, 1408],
-        wineUse3: [0, 60, 120, 181, 242, 304, 367, 430, 494, 559, 624, 691, 758, 826, 896, 966, 1037, 1109, 1182, 1256, 1332, 1408, 1485, 1564, 1644, 1725, 1807, 1891, 1975, 2061, 2149, 2238, 2328, 2419, 2512, 2606, 2702, 2800, 2898, 2999, 3101, 3204, 3310, 3416, 3525, 3635, 3747, 3861, 3976, 4094, 4213, 4334, 4457, 4582, 4709, 4838, 4969, 5103, 5238, 5375, 5515, 5657, 5801, 5947, 6096, 6247, 6400, 6556, 6714, 6875, 7038],
-        time: { a: 10800, b: 1, c: 1.06, d: 10440 },
-        dur: (() => { var t = []; var c = { a: 10800, b: 1, c: 1.06, d: 10440 }; for (var i = 0; i < 70; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/taverne_r.png'
-      },
-      townHall:
-      {
-        buildingId: 0,
-        maxLevel: 66,
-        wood: [0, 158, 335, 623, 923, 1390, 2015, 2706, 3661, 4776, 6173, 8074, 10281, 13023, 16424, 20986, 25423, 32285, 40232, 49286, 61207, 74804, 93956, 113035, 141594, 170213, 210011, 258875, 314902, 387657, 471194, 572581, 695617, 854729, 1037816, 1274043, 1529212, 1876201, 2276286, 2761291, 3349635, 4063337, 4929106, 5979344, 7253354, 8798816, 10673568, 12947770, 15706532, 19053101, 23112718, 28037312, 34011182, 41257896, 50048657, 60712452, 73648368, 89340520, 108376177, 131467734, 159479376, 193459418, 234679540, 284682374, 345339239, 418920177],
-        wine: 0,
-        marble: [0, 0, 0, 0, 285, 551, 936, 1411, 2091, 2945, 4072, 5664, 7637, 10214, 13575, 18254, 23250, 31022, 40599, 52216, 68069, 87316, 115101, 145326, 191053, 241039, 312128, 403825, 515593, 666229, 850031, 1084293, 1382827, 1783721, 2273687, 2930330, 3692591, 4756439, 6058643, 7716366, 9827663, 12516639, 15941353, 20303113, 25858307, 32933474, 41944498, 53421055, 68037746, 86653753, 110363339, 140560175, 179019255, 228001236, 290385320, 369838495, 471031085, 599911276, 764054752, 973110003, 1239365472, 1578471878, 2010362177, 2560423242, 3260988121, 4153236601],
-        glass: 0,
-        sulfur: 0,
-        maxPop: [60, 96, 142, 200, 262, 332, 410, 492, 580, 672, 768, 870, 976, 1086, 1200, 1320, 1440, 1566, 1696, 1828, 1964, 2102, 2246, 2390, 2540, 2690, 2844, 3002, 3162, 3326, 3492, 3660, 3830, 4004, 4180, 4360, 4540, 4724, 4910, 5098, 5293, 5495, 5706, 5924, 6151, 6387, 6631, 6885, 7149, 7423, 7707, 8002, 8308, 8626, 8957, 9300, 9656, 10026, 10409, 10808, 11222, 11652, 12098, 12561, 13042, 13541],
-        actionPointsMax: (() => { var aP = [0]; for (var i = 1; i <= 66; i++) { aP.push(Math.floor(i / 4 + 3)); } return aP; })(),
-        time: { a: 1800, b: 1, c: 1.17, d: -1080, e: [3186] },
-        dur: (() => { var t = []; var c = { a: 1800, b: 1, c: 1.17, d: -1080, e: [3186] }; for (var i = 0; i < 66; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/townhall_l.png'
-      },
-      vineyard:
-      {
-        buildingId: 26,
-        maxLevel: 50,
-        wood: [339, 423, 520, 631, 758, 905, 1074, 1269, 1492, 1749, 2045, 2384, 2775, 3225, 3741, 4336, 5019, 5805, 6709, 7749, 8944, 10319, 11900, 13718, 15809, 18214, 20979, 24159, 27816, 32021, 36858, 42419, 48819, 56184, 64661, 74417, 85645, 98567, 113438, 130553, 150251, 172920, 199010, 229036, 263592, 303362, 349132, 401808, 462431, 532201],
-        wine: 0,
-        marble: [123, 198, 285, 387, 504, 640, 798, 981, 1194, 1440, 1726, 2058, 2443, 2889, 3407, 4008, 4705, 5513, 6450, 7538, 8800, 10263, 11961, 13930, 16214, 18864, 21938, 25503, 29639, 34437, 40002, 46458, 53955, 62664, 72777, 84523, 98164, 114007, 132407, 153776, 178595, 207419, 240894, 279773, 324926, 377366, 438270, 509004, 591153, 686560],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 125660, b: 37, c: 1.06, d: 2232 },
-        dur: (() => { var t = []; var f = [{ a: 125660, b: 37, c: 1.06, d: 2232 }, { a: 107967, b: 44, c: 1.067231, d: 1, e: { 42: 1, 45: 1, 47: 1, 48: 1, 49: 1 } }]; for (var i = 0; i < 50; i++) { var h = i < 32 ? 0 : 1; var g = (f[h].a / f[h].b * Math.pow(f[h].c, i + 1) - f[h].d) - (f[h].e != undefined && f[h].e[i + 1] != undefined ? f[h].e[i + 1] : 0); g = Math.ceil(g); t.push((g > 1728e3 ? 1728e3 : g)); } return t; })(),
-        icon: '/cdn/all/both/img/city/vineyard_l.png'
-      },
-      wall:
-      {
-        buildingId: 8,
-        maxLevel: 48,
-        wood: [114, 361, 657, 1012, 1439, 1951, 2565, 3302, 4186, 5247, 6521, 8049, 9882, 12083, 14724, 17892, 21695, 26258, 31733, 38304, 46189, 55650, 67004, 80629, 96979, 116599, 140143, 168395, 202298, 242982, 291802, 350387, 420688, 505050, 606284, 727765, 873542, 1048474, 1258393, 1510295, 1812578, 2175318, 2610605, 3132950, 3759764, 4511941, 5414554, 6497688],
-        glass: 0,
-        marble: [0, 203, 516, 892, 1344, 1885, 2535, 3315, 4251, 5374, 6721, 8338, 10279, 12608, 15402, 18755, 22779, 27607, 33402, 40355, 48699, 58711, 70726, 85144, 102446, 123208, 148122, 178019, 213896, 256948, 308610, 370605, 444998, 534271, 641398, 769950, 924213, 1109329, 1331467, 1598033, 1917913, 2301768, 2762394, 3315146, 3978448, 4774411, 5729566, 6875751],
-        sulfur: 0,
-        wine: 0,
-        time: { a: 57600, b: 11, c: 1.1, d: 3240, e: [2430] },
-        dur: (() => { var t = []; var c = { a: 57600, b: 11, c: 1.1, d: 3240, e: [2430] }; for (var i = 0; i < 48; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/wall.png'
-      },
-      warehouse:
-      {
-        buildingId: 7,
-        maxLevel: 85,
-        wood: [160, 288, 442, 626, 847, 1113, 1431, 1813, 2272, 2822, 3483, 4275, 5226, 6368, 7737, 9380, 11353, 13719, 16559, 19967, 24056, 28963, 34852, 41918, 50398, 60574, 72784, 87437, 105021, 126121, 151441, 181825, 218286, 262039, 314543, 377548, 453153, 543880, 652752, 783398, 940192, 1128368, 1354207, 1625247, 1950534, 2340927, 2809455, 3371758, 4046603, 4856517, 5828531, 6995091, 8395134, 10075391, 12091945, 14512105, 17416651, 20902532, 25086100, 30106994, 36132802, 43364655, 52043937, 62460347, 74961564, 89964855, 107971003, 129581016, 155516198, 186642214, 223997992, 268830396, 322635847, 387210269, 464709033, 557718899, 669344361, 803311263, 964091166, 1157050597, 1388630175, 1666559584, 2000115580, 2400431627, 2880869512],
-        wine: 0,
-        marble: [0, 0, 0, 96, 211, 349, 515, 714, 953, 1240, 1584, 1997, 2492, 3086, 3800, 4656, 5683, 6915, 8394, 10169, 12299, 14855, 17922, 21602, 26019, 31319, 37678, 45310, 54468, 65458, 78645, 94471, 113461, 136249, 163595, 196409, 235787, 283041, 339745, 407790, 489463, 587494, 705159, 846390, 1015907, 1219375, 1463595, 1756728, 2108570, 2530879, 3037771, 3646183, 4376450, 5252977, 6305057, 7567850, 9083558, 10902837, 13086485, 15707480, 18853414, 22629425, 27161704, 32601720, 39131276, 46968588, 56375578, 67666623, 81219068, 97485831, 117010544, 140445715, 168574544, 202337086, 242861676, 291502636, 349885531, 419961503, 504072470, 605029398, 726206237, 871652685, 1046229521, 1255771053, 1507280100],
-        glass: 0,
-        sulfur: 0,
-        cp: [8000, 16401, 25455, 35331, 46181, 58159, 71421, 86138, 102493, 120687, 140942, 163502, 188637, 216646, 247860, 282647, 321416, 364622, 412768, 466416, 526189, 592779, 666959, 749584, 841609, 944094, 1058219, 1185297, 1326787, 1484315, 1659690, 1854922, 2072252, 2314171, 2583453, 2883186, 3216807, 3588142, 4001450, 4461476, 4973499, 5543400, 6177729, 6883779, 7669673, 8544460, 9518219, 10602179, 11808851, 13152172, 14647676, 16312668, 18166439, 20230485, 22528769, 25088000, 27937955, 31111829, 34646637, 38583648, 42968887, 47853679, 53295269, 59357506, 66111616, 73637056, 82022473, 91366775, 101780329, 113386298, 126322135, 140741251, 156814887, 174734197, 194712581, 216988297, 241827374, 269526873, 300418536, 334872863, 373303675, 416173213, 463997848, 517354466, 576887609],
-        time: { a: 2880, b: 1, c: 1.14, d: 2160, e: [1063, 1163] },
-        dur: (() => { var t = []; var c = { a: 2880, b: 1, c: 1.14, d: 2160, e: [1063, 1163] }; for (var i = 0; i < 85; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/warehouse_l.png'
-      },
-      winegrower:
-      {
-        buildingId: 21,
-        maxLevel: 61,
-        wood: [274, 467, 718, 1045, 1469, 2021, 2738, 3671, 4883, 6459, 8508, 11172, 14634, 19135, 24987, 32594, 42483, 55339, 72051, 93778, 122022, 158740, 206472, 268525, 349194, 454063, 590393, 767621, 998019, 1297536, 1686907, 2193090, 2851161, 3706696, 4818949, 6264951, 8144848, 10588838, 13766186, 17896947, 23267208, 30248900, 39325559, 51125812, 66466917, 86411362, 112340452, 146049973, 189874567, 246849419, 320920474, 417217714, 542410456, 705169252, 916766387, 1191856573, 1549491900, 2014441336, 2618906170, 3404750192, 4426399083],
-        wine: 0,
-        marble: [0, 116, 255, 436, 671, 977, 1375, 1892, 2564, 3437, 4572, 6049, 7968, 10462, 13705, 17921, 23402, 30527, 39790, 51831, 67485, 87835, 114290, 148681, 193390, 251512, 327069, 425295, 552987, 718988, 934789, 1215330, 1580064, 2054260, 2670767, 3472295, 4514372, 5869187, 7630598, 9920629, 12897924, 16768741, 21801234, 28344037, 36850411, 47909647, 62287886, 80981202, 105284598, 136881725, 177961516, 231369827, 300806590, 391082130, 508450405, 661042257, 859428691, 1117353190, 1452683817, 1888651047, 2455457089],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 72000, b: 11, c: 1.1, d: 6120 },
-        dur: (() => { var t = []; var c = { a: 72000, b: 11, c: 1.1, d: 6120 }; for (var i = 0; i < 61; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/winegrower_l.png'
-      },
-      workshop:
-      {
-        buildingId: 15,
-        maxLevel: 32,
-        wood: [220, 383, 569, 781, 1023, 1299, 1613, 1972, 2380, 2846, 3377, 3982, 4672, 5458, 6355, 7377, 8542, 9870, 11385, 13111, 15079, 17322, 19880, 22796, 26119, 29909, 34228, 39153, 44766, 51166, 58462, 66779],
-        wine: 0,
-        marble: [95, 167, 251, 349, 461, 592, 744, 920, 1125, 1362, 1637, 1956, 2326, 2755, 3253, 3831, 4501, 5278, 6180, 7226, 8439, 9847, 11479, 13373, 15570, 18118, 21074, 24503, 28481, 33095, 38447, 44656],
-        glass: 0,
-        sulfur: 0,
-        time: { a: 96000, b: 7, c: 1.05, d: 11880 },
-        dur: (() => { var t = []; var c = { a: 96000, b: 7, c: 1.05, d: 11880 }; for (var i = 0; i < 32; i++) { var d = Math.round(c.a / c.b * Math.pow(c.c, i + 1) - c.d) - (c.e != undefined ? (c.e[i] != undefined ? c.e[i] : 0) : 0); t.push((d > 1728e3 ? 1728e3 : d)); } return t; })(),
-        icon: '/cdn/all/both/img/city/workshop_l.png'
-      }
-    }
-  };
-
-  Constant.buildingOrder = {
-    growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS, Constant.Buildings.CHRONOSFORGE],
-    diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
-    military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
-    wood: [Constant.Buildings.FORESTER, Constant.Buildings.CARPENTER],
-    wine: [Constant.Buildings.WINERY, Constant.Buildings.VINEYARD],
-    marble: [Constant.Buildings.STONEMASON, Constant.Buildings.ARCHITECT],
-    crystal: [Constant.Buildings.GLASSBLOWER, Constant.Buildings.OPTICIAN],
-    sulfur: [Constant.Buildings.ALCHEMISTS_TOWER, Constant.Buildings.FIREWORK_TEST_AREA],
-    piracy: [Constant.Buildings.PIRATE_FORTRESS]
-  };
-  Constant.altBuildingOrder = {
-    growth: [Constant.Buildings.TOWN_HALL, Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS, Constant.Buildings.CHRONOSFORGE],
-    diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
-    military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
-    production: [Constant.Buildings.FORESTER, Constant.Buildings.WINERY, Constant.Buildings.STONEMASON, Constant.Buildings.GLASSBLOWER, Constant.Buildings.ALCHEMISTS_TOWER],
-    reducton: [Constant.Buildings.CARPENTER, Constant.Buildings.VINEYARD, Constant.Buildings.ARCHITECT, Constant.Buildings.OPTICIAN, Constant.Buildings.FIREWORK_TEST_AREA],
-    piracy: [Constant.Buildings.PIRATE_FORTRESS]
-  };
-  Constant.compBuildingOrder = {
-    growth: [Constant.Buildings.TOWN_HALL, 'colonyBuilding', Constant.Buildings.PALACE, Constant.Buildings.GOVERNORS_RESIDENCE, Constant.Buildings.TAVERN, Constant.Buildings.MUSEUM],
-    research: [Constant.Buildings.ACADEMY, Constant.Buildings.WORKSHOP, Constant.Buildings.TEMPLE, Constant.Buildings.SHRINEOFOLYMPUS, Constant.Buildings.CHRONOSFORGE],
-    diplomacy: [Constant.Buildings.EMBASSY],
-    trading: [Constant.Buildings.WAREHOUSE, Constant.Buildings.DUMP, Constant.Buildings.TRADING_PORT, Constant.Buildings.DOCKYARD, Constant.Buildings.TRADING_POST, Constant.Buildings.BLACK_MARKET, Constant.Buildings.MARINE_CHART_ARCHIVE],
-    military: [Constant.Buildings.WALL, Constant.Buildings.HIDEOUT, Constant.Buildings.BARRACKS, Constant.Buildings.SHIPYARD],
-    production: [Constant.Buildings.FORESTER, 'productionBuilding', Constant.Buildings.WINERY, Constant.Buildings.STONEMASON, Constant.Buildings.GLASSBLOWER, Constant.Buildings.ALCHEMISTS_TOWER],
-    reducton: [Constant.Buildings.CARPENTER, Constant.Buildings.VINEYARD, Constant.Buildings.ARCHITECT, Constant.Buildings.OPTICIAN, Constant.Buildings.FIREWORK_TEST_AREA],
-    piracy: [Constant.Buildings.PIRATE_FORTRESS]
-  };
-  Constant.unitOrder = {
-    army_front_line: [Constant.Military.HOPLITE, Constant.Military.SPARTAN, Constant.Military.STEAM_GIANT],
-    army_flank: [Constant.Military.SPEARMAN, Constant.Military.SWORDSMAN],
-    army_ranged: [Constant.Military.SLINGER, Constant.Military.ARCHER, Constant.Military.MARKSMAN],
-    army_seige: [Constant.Military.RAM, Constant.Military.CATAPULT, Constant.Military.MORTAR],
-    army_air: [Constant.Military.GYROCOPTER, Constant.Military.BALLOON_BOMBADIER],
-    army_support: [Constant.Military.COOK, Constant.Military.DOCTOR],
-    navy_front_line: [Constant.Military.FLAME_THROWER, Constant.Military.STEAM_RAM],
-    navy_flank: [Constant.Military.RAM_SHIP],
-    navy_ranged: [Constant.Military.BALLISTA_SHIP, Constant.Military.CATAPULT_SHIP, Constant.Military.MORTAR_SHIP],
-    navy_seige: [Constant.Military.SUBMARINE, Constant.Military.ROCKET_SHIP],
-    navy_air: [Constant.Military.PADDLE_SPEEDBOAT, Constant.Military.BALLOON_CARRIER],
-    navy_support: [Constant.Military.TENDER]
-  };
+      throw new Error('programData module does not export getProgramData/default');
+    })
+    .then(function (data) {
+      Constant = data;
+      return data;
+    })
+    .catch(function (err) {
+      empire.error('loadResourceModule(programDataScript)', err);
+      throw err;
+    });
 
   /***********************************************************************************************************************
    * Main Init
@@ -6369,8 +5255,7 @@
     };
   }
 
-  empire.Init();
-  $(function () {
+  function empire_DomInit() {
     var bgViewId = $('body').attr('id');
     if (!(bgViewId === 'city' || bgViewId === 'island' || bgViewId === 'worldmap_iso' || !$('backupLockTimer').length)) {
       return false;
@@ -6429,16 +5314,39 @@
         });
       }
     })();
+  };
+
+  // Wait for shared helper (provided via @require) if available, otherwise initialize immediately.
+  $(function () {
+    // Centralized startup: wait once for both Constant (program data) and the ikariam model,
+    // then initialize. This avoids duplicate waits/requests and ensures dependent code runs
+    // only after both prerequisites are available.
+    (async function startupOnce() {
+      try {
+        // Wait for both program data module and ikariam.model readiness.
+        await Promise.all([
+          ConstantReady,
+          // whenModelReady is the local helper (polls if necessary). Use it to wait once.
+          whenModelReady()
+        ]);
+      } catch (err) {
+        // If either failed, log and still attempt initialization — errors will be handled
+        // in the Init functions. This keeps behavior explicit and avoids silent failures.
+        console.error('Empire Overview initialization: waiting for Constant or model failed', err);
+      }
+      try { empire.Init(); } catch (e) { empire.error('Init', e); }
+      try { empire_DomInit(); } catch (e) { empire.error('DomInit', e); }
+    })();
   });
 
   /**************************************************************************
   * for IkaLogs
   ***************************************************************************/
 
-  function addScript(src) {
-    var scr = document.createElement('script');
-    scr.type = 'text/javascript';
-    scr.src = src;
-    document.getElementsByTagName('body')[0].appendChild(scr);
-  }
+  // function addScript(src) {
+  //   var scr = document.createElement('script');
+  //   scr.type = 'text/javascript';
+  //   scr.src = src;
+  //   document.getElementsByTagName('body')[0].appendChild(scr);
+  // }
 })(jQuery);
