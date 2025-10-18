@@ -24,6 +24,7 @@
 //
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
+// @require              https://github.com/jacobped/ika-scripts/raw/576b3fdf3b1b5332c3cdcfb5a18ad239800e6bec/src/js/waitForIkariamModel.user.js
 //
 // @version              1.2008
 //
@@ -37,13 +38,22 @@
 (function ($) {
   var jQuery = $;
   var isChrome;
-  if (typeof unsafeWindow.jQuery === 'undefined')
-    return;
   if (window.navigator.vendor.match(/Google/)) {
     isChrome = true;
+  } else {
+    isChrome = false;
   }
-  if (!isChrome) {
-    this.$ = this.jQuery = jQuery.noConflict(true);
+
+  // IMPORTANT: do NOT call jQuery.noConflict(true) here — that removes/replaces the page's jQuery
+  // and breaks game scripts (e.g. $.isValue). Use the local jQuery instance passed into the IIFE
+  // and make sure we don't overwrite the page's unsafeWindow.jQuery if it already exists.
+  if (typeof unsafeWindow.jQuery === 'undefined') {
+    // if the page doesn't yet expose jQuery, make ours available so page code (and other libs)
+    // that expect jQuery on window will not fail.
+    unsafeWindow.jQuery = jQuery;
+  }
+  if (typeof unsafeWindow.$ === 'undefined') {
+    unsafeWindow.$ = jQuery;
   }
 
   $.extend({
@@ -130,6 +140,22 @@
   var log = false;
   var timing = false;
   if (!unsafeWindow) unsafeWindow = window;
+
+  // small helpers to access ikariam.model safely (use shared lib when available)
+  const __WaitLib = (typeof __IkariamWaitLib !== 'undefined') ? __IkariamWaitLib : (unsafeWindow && unsafeWindow.__IkariamWaitLib) || (window && window.__IkariamWaitLib) || null;
+
+  function getModelSync() {
+    if (__WaitLib && typeof __WaitLib.getModelSync === 'function') return __WaitLib.getModelSync();
+    return (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+  }
+  function whenModelReady(cb) {
+    if (__WaitLib && typeof __WaitLib.whenModelReady === 'function') return __WaitLib.whenModelReady(cb);
+    // fallback: if caller provided a callback run it on next microtask with current model (may be null)
+    if (typeof cb === 'function') {
+      return Promise.resolve().then(function () { return cb(getModelSync()); });
+    }
+    return Promise.resolve(getModelSync());
+  }
 
   /***********************************************************************************************************************
    * Inject button into page before the page renders the YUI menu or it will not be animated (less work)
@@ -1831,6 +1857,8 @@
       GM_registerMenuCommand(this.scriptName + 'Manual Update', function () {
         empire.CheckForUpdates(true);
       });
+
+      initResourceProduction();
 
     },
 
@@ -4057,47 +4085,70 @@
   *  hourly Resources
   ***************************************************************************/
 
-  var ResourceProduction = new function () {
-    function addProd(position, value) {
-      value = Math.floor(value);
-      if (value > 0)
-        $('span#rp' + position).css('color', 'green').text(Utils.FormatNumToStr(value, true));
-      else if (value < 0)
-        $('span#rp' + position).css('color', 'red').text(Utils.FormatNumToStr(value, true));
-      else $('span#rp' + position).css('color', 'gray').text('+0');
-    }
-    this.createSpan = function (n) {
-      var ids = ['wood', 'wine', 'marble', 'glass', 'sulfur'];
-      if ($('span#rp' + n).length === 0) {
-        $('#cityResources li[id="resources_' + ids[n] + '"]').css({ 'line-height': 'normal', 'padding-top': '0px' }).append('<span id="rp' + n + '" class="resourceProduction"></span>');
+  // lazy-initialized ResourceProduction module; created when initResourceProduction() is called
+  var ResourceProduction = null;
+
+  function initResourceProduction() {
+    if (ResourceProduction) return; // already initialized
+    ResourceProduction = (function () {
+      function addProd(position, value) {
+        value = Math.floor(value);
+        if (value > 0)
+          $('span#rp' + position).css('color', 'green').text(Utils.FormatNumToStr(value, true));
+        else if (value < 0)
+          $('span#rp' + position).css('color', 'red').text(Utils.FormatNumToStr(value, true));
+        else $('span#rp' + position).css('color', 'gray').text('+0');
       }
-    };
-    this.repositionSpan = function (newTradegood) {
-      var oldTradegood = unsafeWindow.ikariam.model.producedTradegood;
-      if (newTradegood != oldTradegood) {
-        if (oldTradegood > 1) {
-          $('span#rp' + oldTradegood).remove();
+      function createSpan(n) {
+        var ids = ['wood', 'wine', 'marble', 'glass', 'sulfur'];
+        if ($('span#rp' + n).length === 0) {
+          $('#cityResources li[id="resources_' + ids[n] + '"]').css({ 'line-height': 'normal', 'padding-top': '0px' }).append('<span id="rp' + n + '" class="resourceProduction"></span>');
         }
-        this.createSpan(newTradegood);
       }
-    };
-    this.updateProd = function () {
-      addProd(0, unsafeWindow.ikariam.model.resourceProduction * 3600);
-      if (unsafeWindow.ikariam.model.cityProducesWine) {
-        addProd(1, unsafeWindow.ikariam.model.tradegoodProduction * 3600 - unsafeWindow.ikariam.model.wineSpendings);
+      function repositionSpan(newTradegood) {
+        var oldTradegood = unsafeWindow.ikariam.model.producedTradegood;
+        if (newTradegood != oldTradegood) {
+          if (oldTradegood > 1) {
+            $('span#rp' + oldTradegood).remove();
+          }
+          createSpan(newTradegood);
+        }
       }
-      else {
-        addProd(1, - unsafeWindow.ikariam.model.wineSpendings);
-        addProd(unsafeWindow.ikariam.model.producedTradegood, unsafeWindow.ikariam.model.tradegoodProduction * 3600);
+      function updateProd() {
+        addProd(0, unsafeWindow.ikariam.model.resourceProduction * 3600);
+        if (unsafeWindow.ikariam.model.cityProducesWine) {
+          addProd(1, unsafeWindow.ikariam.model.tradegoodProduction * 3600 - unsafeWindow.ikariam.model.wineSpendings);
+        } else {
+          addProd(1, -unsafeWindow.ikariam.model.wineSpendings);
+          addProd(unsafeWindow.ikariam.model.producedTradegood, unsafeWindow.ikariam.model.tradegoodProduction * 3600);
+        }
       }
-    };
-  }();
-  $(function () {
-    ResourceProduction.createSpan(0); ResourceProduction.createSpan(1); ResourceProduction.createSpan(2); ResourceProduction.createSpan(3); ResourceProduction.createSpan(4); ResourceProduction.updateProd(); unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData = unsafeWindow.ikariam.model.updateGlobalData;
-    unsafeWindow.ikariam.model.updateGlobalData = function (dataSet) {
-      ResourceProduction.repositionSpan(dataSet.producedTradegood); unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet); ResourceProduction.updateProd();
-    };
-  });
+      return { createSpan: createSpan, repositionSpan: repositionSpan, updateProd: updateProd };
+    })();
+
+    try {
+      ResourceProduction.createSpan(0);
+      ResourceProduction.createSpan(1);
+      ResourceProduction.createSpan(2);
+      ResourceProduction.createSpan(3);
+      ResourceProduction.createSpan(4);
+      ResourceProduction.updateProd();
+
+      var model = unsafeWindow.ikariam && unsafeWindow.ikariam.model;
+      if (model) {
+        model.ResourceProduction_updateGlobalData = model.updateGlobalData;
+        model.updateGlobalData = function (dataSet) {
+          ResourceProduction.repositionSpan(dataSet.producedTradegood); 
+          unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet); 
+          ResourceProduction.updateProd();
+        };
+      } else {
+        console.warn('initResourceProduction: ikariam.model not present when initializing');
+      }
+    } catch (e) {
+      empire && empire.error ? empire.error('initResourceProduction', e) : console.error(e);
+    }
+  }
 
   /***********************************************************************************************************************
    * ikariam
@@ -4136,7 +4187,9 @@
       if (ikariam.CurrentCityId !== params.cityId) {
         paramList.action = 'header';
         paramList.function = 'changeCurrentCity';
-        paramList.actionRequest = unsafeWindow.ikariam.model.actionRequest;
+        // read actionRequest from cached model if available (safe synchronous access)
+        var model = getModelSync();
+        if (model) paramList.actionRequest = model.actionRequest;
         paramList.currentCityId = ikariam.CurrentCityId;
         paramList.oldView = ikariam.mainView;
       }
@@ -4235,7 +4288,20 @@
       return this._GameVersion;
     },
     get CurrentCityId() {
-      return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city' ? ikariam._currentCity || unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id : unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id;
+      try {
+        var model = getModelSync();
+        var selectedId = null;
+        if (model && model.relatedCityData && typeof model.relatedCityData.selectedCity !== 'undefined') {
+          var sel = model.relatedCityData.selectedCity;
+          if (model.relatedCityData[sel]) selectedId = model.relatedCityData[sel].id;
+        }
+        if (unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city') {
+          return ikariam._currentCity || selectedId || null;
+        }
+        return selectedId || null;
+      } catch (e) {
+        return null;
+      }
     },
     get viewIsCity() {
       return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city';
@@ -4871,49 +4937,67 @@
       render.toast('Updated: ' + $('#premium').children(":first").text());
     },
     FetchAllTowns: function () {
-      var _relatedCityData = unsafeWindow.ikariam.model.relatedCityData;
-      var _cityId = null;
-      var city = null;
-      var order = database.settings.cityOrder.value;
-      if (!order.length) order = [];
-      if (_relatedCityData) {
-        for (_cityId in _relatedCityData) {
-          if (_cityId != 'selectedCity' && _cityId != 'additionalInfo') {
-            var own = (_relatedCityData[_cityId].relationship == 'ownCity');
-            var deployed = (_relatedCityData[_cityId].relationship == 'deployedCities');
-            var occupied = (_relatedCityData[_cityId].relationship == 'occupiedCities');
-            if (own) {
-              if (database.cities[_relatedCityData[_cityId].id] == undefined) {
-                (database.cities[_relatedCityData[_cityId].id] = database.addCity(_relatedCityData[_cityId].id)).init();
-                city = database.cities[_relatedCityData[_cityId].id];
-                city.updateTradeGoodID(parseInt(_relatedCityData[_cityId].tradegood));
-                city.isOwn = own;
+      // run the original FetchAllTowns logic once the model is available
+      var run = function (model) {
+        try {
+          var _relatedCityData = unsafeWindow.ikariam.model.relatedCityData;
+          var _cityId = null;
+          var city = null;
+          var order = database.settings.cityOrder.value;
+          if (!order.length) order = [];
+          if (_relatedCityData) {
+            for (_cityId in _relatedCityData) {
+              if (_cityId != 'selectedCity' && _cityId != 'additionalInfo') {
+                var own = (_relatedCityData[_cityId].relationship == 'ownCity');
+                var deployed = (_relatedCityData[_cityId].relationship == 'deployedCities');
+                var occupied = (_relatedCityData[_cityId].relationship == 'occupiedCities');
+                if (own) {
+                  if (database.cities[_relatedCityData[_cityId].id] == undefined) {
+                    (database.cities[_relatedCityData[_cityId].id] = database.addCity(_relatedCityData[_cityId].id)).init();
+                    city = database.cities[_relatedCityData[_cityId].id];
+                    city.updateTradeGoodID(parseInt(_relatedCityData[_cityId].tradegood));
+                    city.isOwn = own;
+                  }
+                  city = database.cities[_relatedCityData[_cityId].id];
+                  city.updateName(_relatedCityData[_cityId].name);
+                  var coords = _relatedCityData[_cityId].coords.match(/(\d+)/);
+                  city.updateCoordinates(coords[0], coords[1]);
+                  if ($.inArray(city.getId, order) == -1) {
+                    order.push(city.getId);
+                  }
+                }
               }
-              city = database.cities[_relatedCityData[_cityId].id];
-              city.updateName(_relatedCityData[_cityId].name);
-              var coords = _relatedCityData[_cityId].coords.match(/(\d+)/);
-              city.updateCoordinates(coords[0], coords[1]);
-              if ($.inArray(city.getId, order) == -1) {
-                order.push(city.getId);
+            }
+            //remove deleted cities
+            for (var cID in database.cities) {
+              var ghost = true;
+              for (_cityId in _relatedCityData) {
+                if (_relatedCityData[_cityId].id == cID || !database.cities[cID].isOwn) {
+                  ghost = false;
+                }
+              }
+              if (ghost) {
+                delete database.cities[cID];
               }
             }
           }
+          database.settings.cityOrder.value = order;
+        } catch (e) {
+          empire && empire.error ? empire.error('FetchAllTowns', e) : console.error(e);
         }
-        //remove deleted cities
-        for (var cID in database.cities) {
-          var ghost = true;
-          for (_cityId in _relatedCityData) {
-            if (_relatedCityData[_cityId].id == cID || !database.cities[cID].isOwn) {
-              ghost = false;
-            }
-          }
-          if (ghost) {
-            delete database.cities[cID];
-          }
-        }
+      };
+
+      var model = getModelSync();
+      if (model) {
+        run(model);
+      } else {
+        whenModelReady(function (m) { run(m || getModelSync()); }).catch(function (err) {
+          console.warn('FetchAllTowns: waitForIkariamModel failed, attempting run anyway', err);
+          run(getModelSync());
+        });
       }
-      database.settings.cityOrder.value = order;
     },
+
     get currentShips() {
       if (this.$freeTransporters == undefined) {
         this.$freeTransporters = $('#js_GlobalMenu_freeTransporters');
@@ -6369,8 +6453,7 @@
     };
   }
 
-  empire.Init();
-  $(function () {
+  function empire_DomInit() {
     var bgViewId = $('body').attr('id');
     if (!(bgViewId === 'city' || bgViewId === 'island' || bgViewId === 'worldmap_iso' || !$('backupLockTimer').length)) {
       return false;
@@ -6429,16 +6512,39 @@
         });
       }
     })();
+  };
+
+  // Wait for shared helper (provided via @require) if available, otherwise initialize immediately.
+  $(function () {
+    const lib = typeof __IkariamWaitLib !== 'undefined' ? __IkariamWaitLib : window.__IkariamWaitLib;
+
+    function runInit() {
+      try { empire.Init(); } catch (e) { empire.error('Init', e); }
+      try { empire_DomInit(); } catch (e) { empire.error('DomInit', e); }
+    }
+
+    if (!lib) {
+      console.warn('Empire Overview: wait-for-ikariam-model lib not found — initializing immediately');
+      runInit();
+    } else {
+      lib.whenModelReady(() => {
+        console.log('Empire Overview: ikariam model ready');
+        runInit();
+      }).catch(err => {
+        console.warn('waitForIkariamModel failed — initializing anyway', err);
+        runInit();
+      });
+    }
   });
 
   /**************************************************************************
   * for IkaLogs
   ***************************************************************************/
 
-  function addScript(src) {
-    var scr = document.createElement('script');
-    scr.type = 'text/javascript';
-    scr.src = src;
-    document.getElementsByTagName('body')[0].appendChild(scr);
-  }
+  // function addScript(src) {
+  //   var scr = document.createElement('script');
+  //   scr.type = 'text/javascript';
+  //   scr.src = src;
+  //   document.getElementsByTagName('body')[0].appendChild(scr);
+  // }
 })(jQuery);
