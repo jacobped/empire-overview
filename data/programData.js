@@ -2,13 +2,13 @@ let gm; // will be assigned in init
 
 // export async function init(_gm) {
 export function init(_gm) {
-  console.info('Empire Overview: program data module being initialized.');
   gm = _gm;
+  gm.log('Empire Overview: program data module being initialized.');
 }
 
 export function getProgramData() {
   if (!gm) throw new Error('Module not initialized; call init(gm) first');
-  console.info('Empire Overview: program data is being loaded.');
+  gm.log('Empire Overview: program data is being loaded.');
 
   var Constant = {
     PremiumData: {
