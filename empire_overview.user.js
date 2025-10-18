@@ -17,6 +17,8 @@
 // @grant                GM_xmlhttpRequest
 // @grant                GM_openInTab
 // @grant                GM_log
+// @grant                GM_getResourceText
+// @grant                GM_getResourceURL
 //
 // @exclude              http://board.*.ikariam.gameforge.com*
 // @exclude              http://*.ikariam.gameforge.*/board
@@ -26,8 +28,9 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 // @require              https://github.com/jacobped/ika-scripts/raw/576b3fdf3b1b5332c3cdcfb5a18ad239800e6bec/src/js/waitForIkariamModel.user.js
 // 
-// @require              https://github.com/jacobped/empire-overview/raw/1af4183e7454f41971d494ab9dbb9b91ad05aeb4/data/programData.js
-// @require              https://github.com/jacobped/empire-overview/raw/eb36111510017382c071098ef717c373278ec82c/data/css.js
+// Special resource modules
+// @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/programData.js
+// @resource             cssScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/css.js
 //
 // @version              1.2008
 //
@@ -147,17 +150,131 @@
   // small helpers to access ikariam.model safely (use shared lib when available)
   const __WaitLib = (typeof __IkariamWaitLib !== 'undefined') ? __IkariamWaitLib : (unsafeWindow && unsafeWindow.__IkariamWaitLib) || (window && window.__IkariamWaitLib) || null;
 
+  // Cached helpers to avoid repeated polling/waits. Prefer external wait lib if present.
+  var __cachedModel = null;
+  var __modelReadyPromise = null;
+
   function getModelSync() {
-    if (__WaitLib && typeof __WaitLib.getModelSync === 'function') return __WaitLib.getModelSync();
-    return (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
-  }
-  function whenModelReady(cb) {
-    if (__WaitLib && typeof __WaitLib.whenModelReady === 'function') return __WaitLib.whenModelReady(cb);
-    // fallback: if caller provided a callback run it on next microtask with current model (may be null)
-    if (typeof cb === 'function') {
-      return Promise.resolve().then(function () { return cb(getModelSync()); });
+    if (__cachedModel) return __cachedModel;
+    if (__WaitLib && typeof __WaitLib.getModelSync === 'function') {
+      __cachedModel = __WaitLib.getModelSync();
+      return __cachedModel;
     }
-    return Promise.resolve(getModelSync());
+    // best-effort synchronous read (may be null)
+    __cachedModel = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+    return __cachedModel;
+  }
+
+  function whenModelReady(cb) {
+    // If external library available, reuse it (it already caches)
+    if (__WaitLib && typeof __WaitLib.whenModelReady === 'function') {
+      // wrap to capture the model into our cache as well
+      var p = __WaitLib.whenModelReady().then(function (m) { __cachedModel = m; return m; });
+      return typeof cb === 'function' ? p.then(cb) : p;
+    }
+
+    if (__modelReadyPromise) {
+      return typeof cb === 'function' ? __modelReadyPromise.then(cb) : __modelReadyPromise;
+    }
+
+    // Create a single polling promise (fast short-interval) and cache it.
+    __modelReadyPromise = new Promise(function (resolve, reject) {
+      try {
+        // quick sync check first
+        var m = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+        if (m) {
+          __cachedModel = m;
+          resolve(m);
+          return;
+        }
+      } catch (e) {
+        // continue to polling
+      }
+
+      var start = Date.now();
+      var timeout = 45000; // generous fallback timeout
+      var interval = 120;
+      var iv = setInterval(function () {
+        try {
+          var mdl = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+          if (mdl) {
+            clearInterval(iv);
+            __cachedModel = mdl;
+            resolve(mdl);
+            return;
+          }
+          if (Date.now() - start > timeout) {
+            clearInterval(iv);
+            reject(new Error('whenModelReady: timeout waiting for ikariam.model'));
+          }
+        } catch (err) {
+          // ignore and continue polling
+        }
+      }, interval);
+    }).then(function (m) {
+      // keep model in cache and return it
+      __cachedModel = m || __cachedModel;
+      return __cachedModel;
+    }).catch(function (err) {
+      // drop cached promise so future callers may retry
+      __modelReadyPromise = null;
+      throw err;
+    });
+
+    return typeof cb === 'function' ? __modelReadyPromise.then(cb) : __modelReadyPromise;
+  }
+
+  // Generic GM helpers shared by all resource modules
+  const GM_MODULE_HELPERS = {
+    addStyle: (...args) => GM_addStyle(...args),
+    getValue: (...args) => GM_getValue(...args),
+    setValue: (...args) => GM_setValue(...args),
+    deleteValue: (...args) => GM_deleteValue(...args),
+    xmlHttpRequest: (...args) => GM_xmlhttpRequest(...args),
+    openInTab: (...args) => GM_openInTab(...args),
+    log: (...args) => GM_log(...args)
+  };
+
+  /**
+   * Load an ES module from a user-script @resource entry and initialize it.
+   * The function itself is not declared async but returns a Promise so callers
+   * can chain .then/.catch. It revokes the blob URL and calls init/default
+   * if present, passing GM_MODULE_HELPERS.
+   *
+   * Usage: loadResourceModule('cssScript').then(mod => { ... })
+   */
+  async function loadResourceModule(resourceName) {
+    try {
+      let text = null;
+      if (typeof GM_getResourceText === 'function') {
+        text = GM_getResourceText(resourceName);
+      } else if (typeof GM_getResourceURL === 'function') {
+        // GM_getResourceURL may return a blob URL; fetch it to get the text.
+        const url = GM_getResourceURL(resourceName);
+        const resp = await fetch(url);
+        text = await resp.text();
+      } else {
+        return Promise.reject(new Error('No method available to load resource: ' + resourceName));
+      }
+
+      const blob = new Blob([text], { type: 'text/javascript' });
+      const url = URL.createObjectURL(blob);
+      try {
+        const mod = await import(url);
+        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        if (mod && typeof mod.init === 'function') {
+          try { mod.init(GM_MODULE_HELPERS); } catch (e) { console.warn('module.init failed', e); }
+        } else if (mod && typeof mod.default === 'function') {
+          try { mod.default(GM_MODULE_HELPERS); } catch (e) { console.warn('module.default failed', e); }
+        }
+        return mod;
+      } catch (err) {
+        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        throw err;
+      }
+    } catch (e) {
+      return Promise.reject(e);
+    }
   }
 
   /***********************************************************************************************************************
@@ -4079,7 +4196,22 @@
   }
   render.LoadCSS = function () {
     // CSS data moved to separate file to allow for easier editing.
-    empire_asset_css_init(database, isChrome, Constant);
+
+    // Use generic loader to import cssScript resource and call its loadCss export.
+    loadResourceModule('cssScript').then(function (cssModule) {
+      try {
+        if (cssModule && typeof cssModule.loadCss === 'function') {
+          // The actual work is done in the cssModule's loadCss function.
+          cssModule.loadCss(database, isChrome, Constant);
+        } else {
+          console.warn('css module has no loadCss export');
+        }
+      } catch (e) {
+        empire.error('cssModule.loadCss', e);
+      }
+    }).catch(function (err) {
+      empire.error('loadResourceModule(cssScript)', err);
+    });
   }
 
   /**************************************************************************
@@ -5010,8 +5142,27 @@
   /***********************************************************************************************************************
    * Constants
    **********************************************************************************************************************/
-  var Constant = empire_asset_program_data(ikariam.Language);
-  if (!Constant) throw new Error('empire_asset_program_data not found — ensure data/programData.js is @require-d and exposes window.empire_asset_program_data');
+  // Constant will be populated asynchronously by loading the programDataScript resource.
+  var Constant = null;
+  // Promise that resolves when Constant is available.
+  var ConstantReady = loadResourceModule('programDataScript')
+    .then(function (dataModule) {
+      // loadResourceModule already calls module.init if present.
+      if (dataModule && typeof dataModule.getProgramData === 'function') {
+        return dataModule.getProgramData();
+      } else if (dataModule && typeof dataModule.default === 'function') {
+        return dataModule.default();
+      }
+      throw new Error('programData module does not export getProgramData/default');
+    })
+    .then(function (data) {
+      Constant = data;
+      return data;
+    })
+    .catch(function (err) {
+      empire.error('loadResourceModule(programDataScript)', err);
+      throw err;
+    });
 
   /***********************************************************************************************************************
    * Main Init
@@ -5096,7 +5247,14 @@
   $(function () {
     const lib = typeof __IkariamWaitLib !== 'undefined' ? __IkariamWaitLib : window.__IkariamWaitLib;
 
-    function runInit() {
+    async function runInit() {
+      try {
+        // Ensure program data (Constant) is loaded before initializing empire.
+        await ConstantReady;
+      } catch (e) {
+        console.error('Failed to load programData module, continuing anyway', e);
+        throw e;
+      }
       try { empire.Init(); } catch (e) { empire.error('Init', e); }
       try { empire_DomInit(); } catch (e) { empire.error('DomInit', e); }
     }
