@@ -26,7 +26,6 @@
 //
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
-// @require              https://github.com/jacobped/ika-scripts/raw/00078e84683b28d1fc2652903f128500d884c023/src/js/waitForIkariamModel.user.js
 // 
 // Special resource modules
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f0d16da04a858079ddc08d0b966ebf98a853c1d4/data/programData.js
@@ -150,84 +149,23 @@
   // small helpers to access ikariam.model safely (use shared lib when available)
   const __WaitLib = (typeof __IkariamWaitLib !== 'undefined') ? __IkariamWaitLib : (unsafeWindow && unsafeWindow.__IkariamWaitLib) || (window && window.__IkariamWaitLib) || null;
 
-  // Cached helpers to avoid repeated polling/waits. Prefer external wait lib if present.
+  // Simplified: load the model directly from unsafeWindow. Disable the external wait module/polling.
   var __cachedModel = null;
-  var __modelReadyPromise = null;
 
-  // Lightweight synchronous accessor for the cached model only.
-  // Use whenModelReady() if you need to wait for the model to become available.
+  // Always read the live model from unsafeWindow synchronously.
   function getCachedModel() {
-    if (__cachedModel) return __cachedModel;
-    if (__WaitLib && typeof __WaitLib.getModelSync === 'function') {
-      // external lib may still provide a sync accessor
-      __cachedModel = __WaitLib.getModelSync();
-      return __cachedModel;
-    }
     try {
-      __cachedModel = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+      __cachedModel = (unsafeWindow && unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
     } catch (e) {
       __cachedModel = null;
     }
     return __cachedModel;
   }
 
+  // whenModelReady now simply resolves immediately with the current model (no polling).
   function whenModelReady(cb) {
-    // If external library available, reuse it (it already caches)
-    if (__WaitLib && typeof __WaitLib.whenModelReady === 'function') {
-      // wrap to capture the model into our cache as well
-      var p = __WaitLib.whenModelReady().then(function (m) { __cachedModel = m; return m; });
-      return typeof cb === 'function' ? p.then(cb) : p;
-    }
-
-    if (__modelReadyPromise) {
-      return typeof cb === 'function' ? __modelReadyPromise.then(cb) : __modelReadyPromise;
-    }
-
-    // Create a single polling promise (fast short-interval) and cache it.
-    __modelReadyPromise = new Promise(function (resolve, reject) {
-      try {
-        // quick sync check first
-        var m = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
-        if (m) {
-          __cachedModel = m;
-          resolve(m);
-          return;
-        }
-      } catch (e) {
-        // continue to polling
-      }
-
-      var start = Date.now();
-      var timeout = 45000; // generous fallback timeout
-      var interval = 120;
-      var iv = setInterval(function () {
-        try {
-          var mdl = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
-          if (mdl) {
-            clearInterval(iv);
-            __cachedModel = mdl;
-            resolve(mdl);
-            return;
-          }
-          if (Date.now() - start > timeout) {
-            clearInterval(iv);
-            reject(new Error('whenModelReady: timeout waiting for ikariam.model'));
-          }
-        } catch (err) {
-          // ignore and continue polling
-        }
-      }, interval);
-    }).then(function (m) {
-      // keep model in cache and return it
-      __cachedModel = m || __cachedModel;
-      return __cachedModel;
-    }).catch(function (err) {
-      // drop cached promise so future callers may retry
-      __modelReadyPromise = null;
-      throw err;
-    });
-
-    return typeof cb === 'function' ? __modelReadyPromise.then(cb) : __modelReadyPromise;
+    var p = Promise.resolve(getCachedModel());
+    return typeof cb === 'function' ? p.then(cb) : p;
   }
 
   // Generic GM helpers shared by all resource modules
