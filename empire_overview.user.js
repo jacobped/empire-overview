@@ -3181,44 +3181,113 @@
       }
       this.AttachClickHandlers();
     },
+        // small generators to produce per-resource and per-city fragments (DRY)
+    _makeResourceCell: function (resourceName) {
+      return '<td class="resource ' + resourceName + '">\n' +
+        '    <span class="icon safeImage"></span>\n' +
+        '    <span class="current"></span>\n' +
+        '   <span class="incoming" data-tooltip="dynamic"></span>\n' +
+        '    <div class="progressbar ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n' +
+        '      <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n' +
+        '    </div>\n' +
+        '</td>\n' +
+        '<td class="resource ' + resourceName + '">\n' +
+        '    <span class="prodconssubsum production Green" data-tooltip="dynamic"></span>\n' +
+        '    <span class="prodconssubsum consumption Red" data-tooltip="dynamic"></span>\n' +
+        '    <span class="emptytime Red"></span>\n' +
+        '</td>';
+    },
+    _makeResourceRow: function (city) {
+      var lang = database.settings.languageChange.value;
+      var resourceCells = '';
+      // build the repeated resource cells by iterating the resource list
+      $.each(Constant.Resources, function (key, resourceName) {
+        resourceCells += render._makeResourceCell(resourceName);
+      });
+
+      var info = city.isUpgrading === true ? '!' : '';
+      var progSci = '';
+      if (city.getBuildingFromName && city.getBuildingFromName(Constant.Buildings.ACADEMY)) {
+        progSci = '<div class="progressbarSci ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">' +
+                  '<div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div></div>';
+      }
+      var wonder_size = 25;
+      var row = '<tr id="resource_{0}">\n' +
+        '  <td class="city_name">\n' +
+        '    <span></span>\n' +
+        '    <span class="clickable">{2}</span>\n' +
+        '    <sub>{3}</sub>\n' +
+        '    <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n' +
+        '  </td>\n' +
+        '  <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit" data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n' +
+        '  <td class="empireactions">\n' +
+        '    <div class="worldmap" data-tooltip="{7}" style="cursor:pointer;"></div>\n' +
+        '    <div class="city" data-tooltip="{8}" style="cursor:pointer;"></div>\n' +
+        '    <div class="island" data-tooltip="{9}" style="cursor:pointer;"></div>\n' +
+        '    <div class="islandwood" data-tooltip="{10}" style="cursor:pointer;"></div>\n' +
+        '    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{11}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="{12}"></div>\n' +
+        '    <div class="transport" data-tooltip="{13}" style="cursor:pointer;"></div>\n' +
+        '  </td>\n' +
+        '  <td class="population" data-tooltip="dynamic">\n' +
+        '    <span class="pop" data-tooltip="dynamic"></span>\n' +
+        '    <span></span>\n' +
+        '    <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n' +
+        '      <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n' +
+        '    </div>\n' +
+        '  </td>\n' +
+        '  <td class="population_happiness"><span class="happy" data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span></td>\n' +
+        '  <td class="research" data-tooltip="dynamic"><span class="scientists" data-tooltip="dynamic"></span><span></span>' + progSci + '</td>\n' +
+        '  ' + resourceCells + '\n' +
+        '</tr>';
+
+      return Utils.format(row, [city.getId, /* placeholder for older code */ '', city.getName || '', city.getAvailableBuildings || '', progSci, info, info ? Constant.LanguageData[lang].constructing : '', Constant.LanguageData[lang].to_world, Constant.LanguageData[lang].to_town_hall + ' {2}', Constant.LanguageData[lang].to_island, Constant.LanguageData[lang].to_saw_mill, city.getTradeGood, Constant.LanguageData[lang].to_mine, Constant.LanguageData[lang].transporting]);
+    },
     getResourceTable: function () {
       var lang = database.settings.languageChange.value;
-      //var header = '<colgroup span="3"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="wonder"></th>\n    <th class="empireactions">\n       <div class="trading" data-tooltip="'+ Constant.LanguageData[lang].transport +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="'+ Constant.LanguageData[lang].agora +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="'+ Constant.LanguageData[lang].member +'" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="'+ Constant.LanguageData[lang].satisfaction +'"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
-      var header = '<colgroup span="2"/>\n      <colgroup span="1"/>\n    <colgroup span="1"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n    <colgroup span="2"/>\n   <colgroup span="2"/>\n    <colgroup span="2"/>\n<thead>\n<tr class="header_row">\n    <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n    <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n    \n    <th class="empireactions">\n       <div class="trading" data-tooltip="' + Constant.LanguageData[lang].transport + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=militaryAdvisor\')"></div>\n<div class="agora" data-tooltip="' + Constant.LanguageData[lang].agora + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyIslandBoard&amp=&islandId\')"></div> <div class="member" data-tooltip="' + Constant.LanguageData[lang].member + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=diplomacyAllyMemberlist\')"></div>\n  </th>\n    <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    \n    <th class="growth_header icon growthImage" data-tooltip="' + Constant.LanguageData[lang].satisfaction + '"   style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n    <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n    <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n    <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n    <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n    <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n  \n</tr>\n</thead>';
-      var table = '<table class="resources">\n    {0}\n   <tbody>{1}</tbody>\n    <tfoot>{2}</tfoot>\n</table>';
-      //var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n        <td class="wonder" data-tooltip="dynamic"  style="cursor:pointer;">\n        <div class="wonder" style="background: url(/cdn/all/both/wonder/w{7}.png) no-repeat center center; background-size: {8}px auto;"></div></td>\n    <td class="empireactions">\n        <div class="worldmap" data-tooltip="'+ Constant.LanguageData[lang].to_world +'" style="cursor:pointer;"></div>        <div class="city" data-tooltip="'+ Constant.LanguageData[lang].to_town_hall +' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="'+ Constant.LanguageData[lang].to_island +'" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="'+ Constant.LanguageData[lang].to_saw_mill +'" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="'+ Constant.LanguageData[lang].to_mine +'"></div>\n <div class="transport" data-tooltip="'+ Constant.LanguageData[lang].transporting +' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
-      var resourceRow = '<tr id="resource_{0}">\n    <td class="city_name">\n        <span></span>\n        <span class="clickable"></span>\n        <sub></sub>\n        <span class="Red" data-tooltip="{6}">&nbsp;&nbsp;<b>{5}</b>&nbsp;&nbsp;</span>\n         </td>\n    <td class="action_points"><span class="ap"></span>&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="3"></span></td>\n          <td class="empireactions">\n        <div class="worldmap" data-tooltip="' + Constant.LanguageData[lang].to_world + '" style="cursor:pointer;"></div>        <div class="city" data-tooltip="' + Constant.LanguageData[lang].to_town_hall + ' {2}" style="cursor:pointer;"></div>\n    <div class="island" data-tooltip="' + Constant.LanguageData[lang].to_island + '" style="cursor:pointer;"></div>\n  <br> <div class="islandwood" data-tooltip="' + Constant.LanguageData[lang].to_saw_mill + '" style="cursor:pointer;"></div>\n    <div class="islandgood" style="background: url(/cdn/all/both/resources/icon_{3}.png) no-repeat center center; background-size: 18px auto; cursor: pointer;" data-tooltip="' + Constant.LanguageData[lang].to_mine + '"></div>\n <div class="transport" data-tooltip="' + Constant.LanguageData[lang].transporting + ' {2}" style="cursor:pointer;"></div>\n        </td>\n    <td class="population" data-tooltip="dynamic">\n        <span class= "pop" data-tooltip="dynamic"></span>\n        <span></span>\n        <div class="progressbarPop ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n            <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n        </div>\n    </td>\n    \n    <td class="population_happiness">   <span class="happy"  data-tooltip="dynamic"><img align=right height="18" hspace="8" vspace="2"></span><br><span class="growth clickbar"></span>\n </td>\n    <td class="research" data-tooltip="dynamic">\n        <span class="scientists" data-tooltip="dynamic"></span>\n        <span></span>\n    {4}   \n   </div>\n    </td>\n    {1}\n    </tr>\n';
-      var resourceCell = '<td class="resource {0}">\n    <span class="icon safeImage"></span>\n    <span class="current"></span>\n   <span class="incoming" data-tooltip="dynamic"></span>\n    <div class="progressbar ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n    <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div>\n    </div>\n  </td>\n<td class="resource {0}">\n    <span class="prodconssubsum production Green" data-tooltip="dynamic"></span>\n    <span class="prodconssubsum consumption Red" data-tooltip="dynamic"></span>\n    <span class="emptytime Red"></span>\n</td>';
-      //var footer = '<tr>\n    <td colspan="3"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
-      var footer = '<tr>\n    <td colspan="2"></td>\n   <td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n    <td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n    <td id="t_research" class="total" data-tooltip="dynamic"></td>\n        <td id="t_currentgold" class="total"></td>\n    <td id="t_goldincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n      <span class="Red"></span>\n         <td id="t_currentwood" class="total"></td>\n    <td id="t_woodincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentwine" class="total"></td>\n    <td id="t_wineincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentmarble" class="total"></td>\n    <td id="t_marbleincome" class="total"data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentglass" class="total"></td>\n    <td id="t_glassincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n    <td id="t_currentsulfur" class="total"></td>\n    <td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n        <span class="Green"></span>\n        <span class="Red"></span>\n    </td>\n</tr>';
 
-      return Utils.format(table, [getHead(), getBody(), getFooter()]);
+      var header = '<colgroup span="2"/>\n' +
+        '<colgroup span="1"/>\n' +
+        '<colgroup span="1"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<colgroup span="2"/>\n' +
+        '<thead>\n' +
+        '<tr class="header_row">\n' +
+        '  <th class="city_name" data-tooltip="{10}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=18\')">{0}</th>\n' +
+        '  <th class="action_points icon actionpointImage" data-tooltip="{1}"></th>\n' +
+        '  <th class="empireactions"></th>\n' +
+        '  <th class="citizen_header icon populationImage" data-tooltip="{2}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n' +
+        '  <th class="growth_header icon growthImage" data-tooltip="' + Constant.LanguageData[lang].satisfaction + '" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=3\');return false;"></th>\n' +
+        '  <th class="research_header icon researchImage" data-tooltip="{3}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=researchAdvisor\');return false;"></th>\n' +
+        '  <th class="gold_header icon goldImage" colspan="2" data-tooltip="{4}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=finances\');return false;"></th>\n' +
+        '  <th class="wood_header icon woodImage" colspan="2" data-tooltip="{5}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=5\');return false;"></th>\n' +
+        '  <th class="wine_header icon wineImage" colspan="2" data-tooltip="{6}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="marble_header icon marbleImage" colspan="2" data-tooltip="{7}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="glass_header icon glassImage" colspan="2" data-tooltip="{8}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '  <th class="sulfur_header icon sulfurImage" colspan="2" data-tooltip="{9}" style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=ikipedia&helpId=6\');return false;"></th>\n' +
+        '</tr>\n' +
+        '</thead>';
 
-      function getHead() {
-        return Utils.format(header, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, Constant.LanguageData[lang].population, Constant.LanguageData[lang].researchP, Constant.LanguageData[lang].finances_, Constant.LanguageData[lang].wood_, Constant.LanguageData[lang].wine_, Constant.LanguageData[lang].marble_, Constant.LanguageData[lang].crystal_, Constant.LanguageData[lang].sulphur_, database.getGlobalData.getLocalisedString('Current form')]);
-      }
+      var tableTpl = '<table class="resources">\n{0}\n<tbody>{1}</tbody>\n<tfoot>{2}</tfoot>\n</table>';
+
       function getBody() {
         var rows = '';
         $.each(database.cities, function (cityId, city) {
-          var resourceCells = '';
-          var info = city.isUpgrading === true ? '!' : '';
-          var progSci = '';
-          if (this.getBuildingFromName(Constant.Buildings.ACADEMY)) {
-            progSci = '<div class="progressbarSci ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">\n <div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></span></div>';
-          }
-          var wonder_size = 20;
-          if (city.getWonder == 7 || 1)
-            wonder_size = 25;
-          $.each(Constant.Resources, function (key, resourceName) {
-            resourceCells += Utils.format(resourceCell, [resourceName]);
-          });
-          rows += Utils.format(resourceRow, [city.getId, resourceCells, city._name, city.getTradeGood, progSci, info, info ? Constant.LanguageData[lang].constructing : '', city.getTradeGoodID, wonder_size]);
+          rows += render._makeResourceRow(city);
         });
         return rows;
       }
+
       function getFooter() {
-        return footer;
+        // Keep the original footer markup (kept minimal here)
+        return '<tr>\n<td colspan="2"></td>\n<td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n<td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n<td id="t_research" class="total" data-tooltip="dynamic"></td>\n<td id="t_currentgold" class="total"></td>\n<td id="t_goldincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n<td id="t_currentwood" class="total"></td>\n<td id="t_woodincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentwine" class="total"></td>\n<td id="t_wineincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentmarble" class="total"></td>\n<td id="t_marbleincome" class="total"data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentglass" class="total"></td>\n<td id="t_glassincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentsulfur" class="total"></td>\n<td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n</tr>';
       }
+
+      return Utils.format(tableTpl, [header, getBody(), getFooter()]);
     },
     getArmyTable: function () {
       var lang = database.settings.languageChange.value;
