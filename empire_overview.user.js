@@ -5245,32 +5245,25 @@
 
   // Wait for shared helper (provided via @require) if available, otherwise initialize immediately.
   $(function () {
-    const lib = typeof __IkariamWaitLib !== 'undefined' ? __IkariamWaitLib : window.__IkariamWaitLib;
-
-    async function runInit() {
+    // Centralized startup: wait once for both Constant (program data) and the ikariam model,
+    // then initialize. This avoids duplicate waits/requests and ensures dependent code runs
+    // only after both prerequisites are available.
+    (async function startupOnce() {
       try {
-        // Ensure program data (Constant) is loaded before initializing empire.
-        await ConstantReady;
-      } catch (e) {
-        console.error('Failed to load programData module, continuing anyway', e);
-        throw e;
+        // Wait for both program data module and ikariam.model readiness.
+        await Promise.all([
+          ConstantReady,
+          // whenModelReady is the local helper (polls if necessary). Use it to wait once.
+          whenModelReady()
+        ]);
+      } catch (err) {
+        // If either failed, log and still attempt initialization — errors will be handled
+        // in the Init functions. This keeps behavior explicit and avoids silent failures.
+        console.error('Empire Overview initialization: waiting for Constant or model failed', err);
       }
       try { empire.Init(); } catch (e) { empire.error('Init', e); }
       try { empire_DomInit(); } catch (e) { empire.error('DomInit', e); }
-    }
-
-    if (!lib) {
-      console.warn('Empire Overview: wait-for-ikariam-model lib not found — initializing immediately');
-      runInit();
-    } else {
-      lib.whenModelReady(() => {
-        console.log('Empire Overview: ikariam model ready');
-        runInit();
-      }).catch(err => {
-        console.warn('waitForIkariamModel failed — initializing anyway', err);
-        runInit();
-      });
-    }
+    })();
   });
 
   /**************************************************************************
