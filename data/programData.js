@@ -2,6 +2,7 @@
   'use strict';
 
   function empire_asset_program_data(ikariamLanguage) {
+    console.info('Empire Overview: program data is being initialized.');
 
     var Constant = {
       PremiumData: {
