@@ -2516,6 +2516,8 @@
         }
         // Tooltip presented when hovering over a building in buildings view
         function getBuildingTooltip(building) {
+          // defensive: building may be undefined during model/UI race
+          if (!building) return '';
           var uConst = building.isUpgrading;
           var resourceCost = building.getUpgradeCost;
           var serverTyp = 1;
@@ -2745,65 +2747,95 @@
     },
     getSettingsTable: function () {
       var lang = database.settings.languageChange.value;
-      var wineOut = '';
       var server = ikariam.Nationality();
-      if (server == 'de') {
-        wineOut = ' <span><input type="checkbox" id="empire_wineOut" ' + (database.settings.wineOut.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].wineOut_description + '"> ' + Constant.LanguageData[lang].wineOut + '</nobr></span>';
+
+      function chk(id, labelKey, descKey) {
+        var s = database.settings[id] && database.settings[id].value ? 'checked="checked"' : '';
+        return '<span><input type="checkbox" id="empire_' + id + '" ' + s + '/><nobr data-tooltip="' + Constant.LanguageData[lang][descKey || id + '_description'] + '"> ' + Constant.LanguageData[lang][labelKey || id] + '</nobr></span>';
       }
-      var piracy = '';
-      if (database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY)) {
-        piracy = ' <span><input type="checkbox" id="empire_noPiracy" ' + (database.settings.noPiracy.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].noPiracy_description + '"> ' + Constant.LanguageData[lang].noPiracy + '</nobr></span>';
+      function sel(id, options, descKey, formatOption) {
+        var cur = database.settings[id].value;
+        var opts = options.map(function (o) {
+          var val = typeof o === 'object' ? o.value : o;
+          var text = formatOption ? formatOption(o) : (Constant.LanguageData[lang][val] || (typeof o === 'object' ? o.label : o));
+          var selected = (cur == val) ? 'selected=selected' : '';
+          return '<option value="' + val + '" ' + selected + '>' + text + '</option>';
+        }).join('');
+        return '<span><select id="empire_' + id + '">' + opts + '</select><nobr data-tooltip="' + Constant.LanguageData[lang][descKey || id + '_description'] + '"> ' + Constant.LanguageData[lang][id] + '</nobr></span>';
       }
-      var elems = '<div id="SettingsTab"><div>';
-      var inits = '<div class="options" style="clear:right"><span class="categories">' + Constant.LanguageData[lang].building_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_alternativeBuildingList" ' + (database.settings.alternativeBuildingList.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].alternativeBuildingList_description + '"> ' + Constant.LanguageData[lang].alternativeBuildingList + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_compressedBuildingList" ' + (database.settings.compressedBuildingList.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].compressedBuildingList_description + '"> ' + Constant.LanguageData[lang].compressedBuildingList + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].resource_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_hourlyRess" ' + (database.settings.hourlyRess.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hourlyRes_description + '"> ' + Constant.LanguageData[lang].hourlyRes + '</nobr></span>'
-        + ' ' + wineOut + ''
-        + ' <span><input type="checkbox" id="empire_dailyBonus" ' + (database.settings.dailyBonus.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].dailyBonus_description + '"> ' + Constant.LanguageData[lang].dailyBonus + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_wineWarning" ' + (database.settings.wineWarning.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].wineWarning_description + '"> ' + Constant.LanguageData[lang].wineWarning + '</nobr></span>'
-        + ' <span><select id="empire_wineWarningTime"><option value="0"' + (database.settings.wineWarningTime.value === 0 ? 'selected=selected' : '') + '> ' + Constant.LanguageData[lang].off + '</option><option value="12"' + (database.settings.wineWarningTime.value == 12 ? 'selected=selected' : '') + '> 12' + Constant.LanguageData[lang].hour + '</option><option value="24"' + (database.settings.wineWarningTime.value == 24 ? 'selected=selected' : '') + '> 24' + Constant.LanguageData[lang].hour + '</option><option value="36"' + (database.settings.wineWarningTime.value == 36 ? 'selected=selected' : '') + '> 36' + Constant.LanguageData[lang].hour + '</option><option value="48"' + (database.settings.wineWarningTime.value == 48 ? 'selected=selected' : '') + '> 48' + Constant.LanguageData[lang].hour + '</option><option value="96"' + (database.settings.wineWarningTime.value == 96 ? 'selected=selected' : '') + '> 96' + Constant.LanguageData[lang].hour + '</option></select><nobr data-tooltip="' + Constant.LanguageData[lang].wineWarningTime_description + '"> ' + Constant.LanguageData[lang].wineWarningTime + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].language_category + '</span>'
-        + ' <span><select id="empire_languageChange"><option value="en"' + (database.settings.languageChange.value == 'en' ? 'selected=selected' : '') + '> ' + Constant.LanguageData[lang].en + '</option></select><nobr data-tooltip="' + Constant.LanguageData[lang].languageChange_description + '"> ' + Constant.LanguageData[lang].languageChange + '</nobr></span>'
-        + '</div>';
-      var features = '<div class="options">'
-        + ' <span class="categories">' + Constant.LanguageData[lang].visibility_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_hideOnWorldView" ' + (database.settings.hideOnWorldView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnWorldView_description + '"> ' + Constant.LanguageData[lang].hideOnWorldView + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_hideOnIslandView" ' + (database.settings.hideOnIslandView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnIslandView_description + '"> ' + Constant.LanguageData[lang].hideOnIslandView + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_hideOnCityView" ' + (database.settings.hideOnCityView.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].hideOnCityView_description + '"> ' + Constant.LanguageData[lang].hideOnCityView + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].army_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_fullArmyTable" ' + (database.settings.fullArmyTable.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].fullArmyTable_description + '"> ' + Constant.LanguageData[lang].fullArmyTable + '</nobr></span>'
-        // + ' <span><input type="checkbox" id="empire_playerInfo" ' + (database.settings.playerInfo.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="'+ Constant.LanguageData[lang].playerInfo_description +'"> '+ Constant.LanguageData[lang].playerInfo +'</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_onIkaLogs" ' + (database.settings.onIkaLogs.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].onIkaLogs_description + '"> ' + Constant.LanguageData[lang].onIkaLogs + '</nobr></span>'
-        + ' <hr>'
-        + ' <span class="categories">' + Constant.LanguageData[lang].global_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_autoUpdates" ' + (database.settings.autoUpdates.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].autoUpdates_description + '"> ' + Constant.LanguageData[lang].autoUpdates + '</nobr></span>'
-        + '</div>';
-      var display = '<div class="options">'
-        + ' <span class="categories">' + Constant.LanguageData[lang].display_category + '</span>'
-        + ' <span><input type="checkbox" id="empire_onTop" ' + (database.settings.onTop.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].onTop_description + '"> ' + Constant.LanguageData[lang].onTop + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_windowTennis" ' + (database.settings.windowTennis.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].windowTennis_description + '"> ' + Constant.LanguageData[lang].windowTennis + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_smallFont" ' + (database.settings.smallFont.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].smallFont_description + '"> ' + Constant.LanguageData[lang].smallFont + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_GoldShort" ' + (database.settings.GoldShort.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].goldShort_description + '"> ' + Constant.LanguageData[lang].goldShort + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_newsTicker" ' + (database.settings.newsTicker.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].newsticker_description + '"> ' + Constant.LanguageData[lang].newsticker + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_event" ' + (database.settings.event.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].event_description + '"> ' + Constant.LanguageData[lang].event + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_logInPopup" ' + (database.settings.logInPopup.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].logInPopup_description + '"> ' + Constant.LanguageData[lang].logInPopup + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_birdSwarm" ' + (database.settings.birdSwarm.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].birdswarm_description + '"> ' + Constant.LanguageData[lang].birdswarm + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_walkers" ' + (database.settings.walkers.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].walkers_description + '"> ' + Constant.LanguageData[lang].walkers + '</nobr></span>'
-        + ' ' + piracy + ''
-        + ' <span><input type="checkbox" id="empire_controlCenter" ' + (database.settings.controlCenter.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].control_description + '"> ' + Constant.LanguageData[lang].control + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_withoutFable" ' + (database.settings.withoutFable.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].unnecessaryTexts_description + '"> ' + Constant.LanguageData[lang].unnecessaryTexts + '</nobr></span>'
-        + ' <span><input type="checkbox" id="empire_ambrosiaPay" ' + (database.settings.ambrosiaPay.value ? 'checked="checked"' : '') + '/><nobr data-tooltip="' + Constant.LanguageData[lang].ambrosiaPay_description + '"> ' + Constant.LanguageData[lang].ambrosiaPay + '</nobr></span>'
-        + '</div>';
-      elems += features + inits + display + '<div style="clear:left"></div>';
-      elems += '</div></div>';
-      elems += '<div style="clear:left"><hr><p>&nbsp; ' + Constant.LanguageData[lang].current_Version + ' <b>&nbsp;' + empire.version + '</b></p><p>&nbsp; ' + Constant.LanguageData[lang].ikariam_Version + ' <b style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=version\')">&nbsp;' + ikariam.GameVersion() + '</b></p></div><br>';
-      elems += '<div class="buttons">' + '<button data-tooltip="' + Constant.LanguageData[lang].reset + '" id="empire_Reset_Button">Reset</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].goto_website + '" id="empire_Website_Button">' + Constant.LanguageData[lang].website + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].Check_for_updates + '" id="empire_Update_Button">' + Constant.LanguageData[lang].check + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].Report_bug + '" id="empire_Bug_Button">' + Constant.LanguageData[lang].report + '</button>' + '<button data-tooltip="' + Constant.LanguageData[lang].save_settings + '" id="empire_Save_Button" onclick="ajaxHandlerCall(\'?view=city&oldBackgroundView\')">' + Constant.LanguageData[lang].save + '</button>';
-      return elems;
+
+      // conditional special items
+      var wineOutHTML = server === 'de' ? chk('wineOut', 'wineOut', 'wineOut_description') : '';
+      var piracyHTML = database.getGlobalData.getResearchTopicLevel(Constant.Research.Seafaring.PIRACY) ? chk('noPiracy', 'noPiracy', 'noPiracy_description') : '';
+
+      var parts = [];
+
+      parts.push('<div id="SettingsTab"><div>');
+      // Building + Resource block
+      parts.push('<div class="options" style="clear:right"><span class="categories">' + Constant.LanguageData[lang].building_category + '</span>');
+      parts.push(chk('alternativeBuildingList', 'alternativeBuildingList', 'alternativeBuildingList_description'));
+      parts.push(chk('compressedBuildingList', 'compressedBuildingList', 'compressedBuildingList_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].resource_category + '</span>');
+      parts.push(chk('hourlyRess', 'hourlyRes', 'hourlyRes_description'));
+      parts.push(wineOutHTML);
+      parts.push(chk('dailyBonus', 'dailyBonus', 'dailyBonus_description'));
+      parts.push(chk('wineWarning', 'wineWarning', 'wineWarning_description'));
+      parts.push(sel('wineWarningTime', [0, 12, 24, 36, 48, 96], 'wineWarningTime_description', function (v) {
+        return (v === 0 ? Constant.LanguageData[lang].off : v + Constant.LanguageData[lang].hour);
+      }));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].language_category + '</span>');
+      parts.push(sel('languageChange', [{ value: 'en', label: Constant.LanguageData[lang].en }], 'languageChange_description'));
+      parts.push('</div>');
+
+      // Visibility / Army / Global
+      parts.push('<div class="options">');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].visibility_category + '</span>');
+      parts.push(chk('hideOnWorldView', 'hideOnWorldView', 'hideOnWorldView_description'));
+      parts.push(chk('hideOnIslandView', 'hideOnIslandView', 'hideOnIslandView_description'));
+      parts.push(chk('hideOnCityView', 'hideOnCityView', 'hideOnCityView_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].army_category + '</span>');
+      parts.push(chk('fullArmyTable', 'fullArmyTable', 'fullArmyTable_description'));
+      parts.push(chk('onIkaLogs', 'onIkaLogs', 'onIkaLogs_description'));
+      parts.push(' <hr>');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].global_category + '</span>');
+      parts.push(chk('autoUpdates', 'autoUpdates', 'autoUpdates_description'));
+      parts.push('</div>');
+
+      // Display block
+      parts.push('<div class="options">');
+      parts.push(' <span class="categories">' + Constant.LanguageData[lang].display_category + '</span>');
+      parts.push(chk('onTop', 'onTop', 'onTop_description'));
+      parts.push(chk('windowTennis', 'windowTennis', 'windowTennis_description'));
+      parts.push(chk('smallFont', 'smallFont', 'smallFont_description'));
+      parts.push(chk('GoldShort', 'goldShort', 'goldShort_description'));
+      parts.push(chk('newsTicker', 'newsticker', 'newsticker_description'));
+      parts.push(chk('event', 'event', 'event_description'));
+      parts.push(chk('logInPopup', 'logInPopup', 'logInPopup_description'));
+      parts.push(chk('birdSwarm', 'birdswarm', 'birdswarm_description'));
+      parts.push(chk('walkers', 'walkers', 'walkers_description'));
+      parts.push(piracyHTML);
+      parts.push(chk('controlCenter', 'control', 'control_description'));
+      parts.push(chk('withoutFable', 'unnecessaryTexts', 'unnecessaryTexts_description'));
+      parts.push(chk('ambrosiaPay', 'ambrosiaPay', 'ambrosiaPay_description'));
+      parts.push('</div>');
+
+      parts.push('<div style="clear:left"></div>');
+      parts.push('</div></div>');
+
+      // version + buttons
+      parts.push('<div style="clear:left"><hr><p>&nbsp; ' + Constant.LanguageData[lang].current_Version + ' <b>&nbsp;' + empire.version + '</b></p><p>&nbsp; ' + Constant.LanguageData[lang].ikariam_Version + ' <b style="cursor:pointer;" onclick="ajaxHandlerCall(\'?view=version\')">&nbsp;' + ikariam.GameVersion() + '</b></p></div><br>');
+      parts.push('<div class="buttons">');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].reset + '" id="empire_Reset_Button">Reset</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].goto_website + '" id="empire_Website_Button">' + Constant.LanguageData[lang].website + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].Check_for_updates + '" id="empire_Update_Button">' + Constant.LanguageData[lang].check + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].Report_bug + '" id="empire_Bug_Button">' + Constant.LanguageData[lang].report + '</button>');
+      parts.push('<button data-tooltip="' + Constant.LanguageData[lang].save_settings + '" id="empire_Save_Button" onclick="ajaxHandlerCall(\'?view=city&oldBackgroundView\')">' + Constant.LanguageData[lang].save + '</button>');
+      parts.push('</div>');
+
+      return parts.join('');
     },
     DrawHelp: function () {
       var lang = database.settings.languageChange.value;
@@ -3296,70 +3328,56 @@
       var headerCell = '<th data-tooltip="{0}" style="background:url(\'{1}\')  no-repeat center center; background-size: auto 24px; cursor: pointer;" colspan="2" class="army unit icon {2}" onclick="ajaxHandlerCall(\'?view=unitdescription&{5}Id={3}&helpId={4}\'); return false;">&nbsp;</th>\n\n';
       var bodyRow = '<tr id="army_{0}">\n    <td class="city_name"><img><span class="clickable"></span><sub></sub></td>\n    <td class="action_points"><span class="ap"></span>&nbsp;&nbsp;<br><span class="garrisonlimit"  data-tooltip="dynamic"><img height="18" hspace="5"></span></td>\n    <td class="empireactions">\n     <div class="deploymentarmy"data-tooltip="' + Constant.LanguageData[lang].transporting_units + '&nbsp;{2}" style="cursor:pointer;"></div>\n  <br>  <div class="deploymentfleet" data-tooltip="' + Constant.LanguageData[lang].transporting_fleets + '&nbsp;{2}" style="cursor:pointer;"></div>\n</td> \n <td class="empireactions">{3} <br> {4}  \n    </td>\n <td class="expenses"> {5} </td>\n   {1}\n</tr>';
       var bodyCell = '</td><td style="" class="army unit {0}">\n    <span>{1}</span>\n</td>\n<td style="" class="army movement {0}" data-tooltip="dynamic">\n    <span class="More Green {0}">{2}</span>\n  <br>  <span class="More Blue {0}">{3}</span>\n</td>';
-      var costCell = '';
       var footerRow = '<tr class="totals_row">\n    <td class="city_name"></td>\n    <td></td>\n   <td class="sigma" colspan="2">Σ</td><td>&nbsp;{1}&nbsp;</td>\n    {0}\n</tr>';
       var footerCell = '<td class="army total {0} unit">\n    <span></span>\n</td>\n<td style="" class="army total {0} movement">\n    <span class="More Green"></span>\n    <span class="More Blue"></span>\n</td>';
 
-      return Utils.format(table, [getHead(), getBody(), getFooter()]);
-
       function getHead() {
-        var headerCells = '';
-        var cols = '<colgroup span=4/><colgroup></colgroup>';
-        for (var category in Constant.unitOrder) {
-          cols += '<colgroup>';
-          $.each(Constant.unitOrder[category], function (index, value) {
-            var helpId = 9;
-            var unit = 'unit';
-            if (Constant.UnitData[value].id < 300) {
-              helpId = 10;
-              unit = 'ship';
-            }
-            headerCells += Utils.format(headerCell, [Constant.LanguageData[lang][value], getImage(value), value, Constant.UnitData[value].id, helpId, unit]);
-            cols += '<col><col>';
-          });
-          cols += '</colgroup>';
-        }
-        return cols + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
+        var cols = ['<colgroup span=4/>', '<colgroup></colgroup>'];
+        var headerCells = Object.keys(Constant.unitOrder).map(function (category) {
+          var cells = Constant.unitOrder[category].map(function (value) {
+            var helpId = Constant.UnitData[value].id < 300 ? 10 : 9;
+            var unit = Constant.UnitData[value].id < 300 ? 'ship' : 'unit';
+            cols.push('<col><col>');
+            return Utils.format(headerCell, [Constant.LanguageData[lang][value], getImage(value), value, Constant.UnitData[value].id, helpId, unit]);
+          }).join('');
+          return cells;
+        }).join('');
+        // assemble colgroups (flat col tags already pushed)
+        var colgroups = cols.join('');
+        return colgroups + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
       }
 
       function getBody() {
-        var body = '';
-        $.each(database.cities, function (cityId, city) {
-          var rowCells = '';
-          var divbarracks = '';
-          if (this.getBuildingFromName(Constant.Buildings.BARRACKS)) {
-            divbarracks = '<div class="barracks" data-tooltip="' + Constant.LanguageData[lang].to_barracks + '&nbsp;{2}" style="cursor:pointer;"></div>';
-          }
-          var divshipyard = '&nbsp;';
-          if (this.getBuildingFromName(Constant.Buildings.SHIPYARD)) {
-            divshipyard = '<div class="shipyard" data-tooltip="' + Constant.LanguageData[lang].to_shipyard + '&nbsp;{2}" style="cursor:pointer;"></div>';
-          }
-          var cost = 0; //city.military.getUnits.getUnit('phalanx')*Constant.UnitData.phalanx.baseCost; //geht für die Hopps todo, alle Einheiten integrieren
-          for (var category in Constant.unitOrder) {
-            $.each(Constant.unitOrder[category], function (index, value) {
+        return Object.keys(database.cities).map(function (cityId) {
+          var city = database.cities[cityId];
+          var rowCells = Object.keys(Constant.unitOrder).map(function (category) {
+            return Constant.unitOrder[category].map(function (value) {
               var builds = city.getUnitBuildsByUnit(value);
-              rowCells += Utils.format(bodyCell, [value, city.military.getUnits.getUnit(value) || '', builds[value] ? builds[value] : '', '']);
-            });
-          }
-          body += Utils.format(bodyRow, [city.getId, rowCells, city._name, divbarracks, divshipyard, cost]);
-        });
-        return body;
+              return Utils.format(bodyCell, [value, city.military.getUnits.getUnit(value) || '', builds && builds[value] ? builds[value] : '', '']);
+            }).join('');
+          }).join('');
+          var divbarracks = city.getBuildingFromName(Constant.Buildings.BARRACKS) ? '<div class="barracks" data-tooltip="' + Constant.LanguageData[lang].to_barracks + '&nbsp;{2}" style="cursor:pointer;"></div>' : '';
+          var divshipyard = city.getBuildingFromName(Constant.Buildings.SHIPYARD) ? '<div class="shipyard" data-tooltip="' + Constant.LanguageData[lang].to_shipyard + '&nbsp;{2}" style="cursor:pointer;"></div>' : '&nbsp;';
+          var cost = 0;
+          return Utils.format(bodyRow, [city.getId, rowCells, city._name, divbarracks, divshipyard, cost]);
+        }).join('');
       }
 
       function getFooter() {
-        var footerCells = '';
         var expense = Utils.FormatNumToStr(database.getGlobalData.finance.armyCost + database.getGlobalData.finance.fleetCost);
-        for (var category in Constant.unitOrder) {
-          $.each(Constant.unitOrder[category], function (index, value) {
-            footerCells += Utils.format(footerCell, [value]);
-          });
-        }
+        var footerCells = Object.keys(Constant.unitOrder).map(function (category) {
+          return Constant.unitOrder[category].map(function (value) {
+            return Utils.format(footerCell, [value]);
+          }).join('');
+        }).join('');
         return Utils.format(footerRow, [footerCells, expense]);
       }
 
       function getImage(unitID) {
         return (Constant.UnitData[unitID].type == 'fleet') ? '/cdn/all/both/characters/fleet/60x60/' + unitID + '_faceright.png' : '/cdn/all/both/characters/military/x60_y60/y60_' + unitID + '_faceright.png';
       }
+
+      return Utils.format(table, [getHead(), getBody(), getFooter()]);
     },
     getBuildingTable: function () {
       var lang = database.settings.languageChange.value;
@@ -3371,78 +3389,67 @@
       var counts = database.getBuildingCounts;
       var buildingOrder = (database.settings.alternativeBuildingList.value ? Constant.altBuildingOrder : database.settings.compressedBuildingList.value ? Constant.compBuildingOrder : Constant.buildingOrder);
 
-      return Utils.format(table, [getHead(), getBody()]);
-
       function getHead() {
-        var headerCells = '';
+        // build colgroups and headerCells concisely
         var colgroup = '<colgroup span="3"></colgroup>';
-        for (var category in buildingOrder) {
+        var headerCells = Object.keys(buildingOrder).map(function (category) {
           var cols = '';
-          $.each(buildingOrder[category], function (index, value) {
+          var cells = buildingOrder[category].map(function (value) {
             if (value == 'colonyBuilding') {
-              if (!database.settings.compressedBuildingList.value || !counts[value]) {
-                return true;
-              }
+              if (!database.settings.compressedBuildingList.value || !counts[value]) return '';
               cols += '<col span="' + counts[value] + '">';
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang].palace + '/' + Constant.LanguageData[lang].palaceColony, Constant.BuildingData[Constant.Buildings.PALACE].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData.palace.buildingId]);
+              return Utils.format(headerCell, [Constant.LanguageData[lang].palace + '/' + Constant.LanguageData[lang].palaceColony, Constant.BuildingData[Constant.Buildings.PALACE].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData.palace.buildingId]).replace('50px auto', '38px 28px');
             } else if (value == 'productionBuilding') {
-              if (!database.settings.compressedBuildingList.value || !counts[value]) {
-                return true;
-              }
+              if (!database.settings.compressedBuildingList.value || !counts[value]) return '';
               cols += '<col span="' + counts[value] + '">';
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang].stonemason + '/' + Constant.LanguageData[lang].winegrower + '/' + Constant.LanguageData[lang].alchemist + '/' + Constant.LanguageData[lang].glassblowing, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAUCAMAAACknt2MAAABelBMVEUAAADp49mgkICxmnzVuIxMcwtciQ90pSC/tKR7aFWOfGmIdmPKr4lomxChyk/YxKjTyrzl2slrVkKBblu5ooXp0a3NwrOqm4uNeWRTMzMnGRZFQBvb0sS0p5j18OiTgW3cvpSeXF07JSSJUlLFeHY2NhZzrRKZh3XmyJwPCgl7jzSHyBXlx53EuateSje0amp0YE2Fc2FzSEeFqzfoyJftylO7l1312oXv0GzWyqzN0MH15b311WO3iy2jchyLXiuZrqtyt9uJx+bP2M789+/sz3nv2p7+5IOXZRWHVA/jxou7vquTyuS7x72MqKmEw+J/wOFdk6ylsaXsz6Xz1njKnzTBlkF6SAvhvE2TsraVzeiNyeZ8ttJ7v+EzXnXJ1M2tfiKts6S63ex2utyUw9hFhqV6ss2W0O7fvmDUrUJnnrOk0+tjq8602uzO6fbCyr7Eu6BqrM1tstS74fKbzeXS6/dvud7OrG1PlLeMwNfW7viu2e2i0ObK4OYudx14AAAAAXRSTlMAQObYZgAAAAFiS0dEAIgFHUgAAAAJcEhZcwAAAEgAAABIAEbJaz4AAAFfSURBVCgVBcFLTlNhGADQ8/29t/e/reVhChWkUDFRE0hM1IlxYiIzhy5EN+ASTNyBO3DoIpw7VBNAiga0QFKsPK7nBBARV4AiIq4ukUBWVd0bQI0OJJjPC3VcV0AVTdOGhKVot//0TEFR9pebWQ8J1d9qNjxZjhGKYV3XI7N7JLDfU+dh48HmekrKcjYab0m2Y7GeP9tb2ztCL5meT8J45UJre5KOrlZv/hr0TyeXk3p6sdBqfc96439p399GXdx2Pbxv47zTreeiGcxKAABF8aiA/tZjAZ5EfAYA0ALDFKsrB4Cn63sgwbOyVeYu4HnOL0BgJyJOFkR88jIiIiI+ouDVecfhMCIa5iLix1oEJDtnnShmZ2mcT8k5VXdzzpB20kn/8HJkcfVnw4c8V09znr5GSpsbX5qlruOvA7zZbbdXqvJWhfR799tgduzhnVY9z/vtnN9VdfvgLQAAAPgPmQZaHvndsJEAAAAASUVORK5CYII=', counts[value], "?view=buildingDetail&helpId=1&buildingId=21"]).replace('50px auto', '38px 28px');
+              return Utils.format(headerCell, [Constant.LanguageData[lang].stonemason + '/' + Constant.LanguageData[lang].winegrower + '/' + Constant.LanguageData[lang].alchemist + '/' + Constant.LanguageData[lang].glassblowing, 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABoAAAAUCAMAAACknt2M...', counts[value], "?view=buildingDetail&helpId=1&buildingId=21"]).replace('50px auto', '38px 28px');
             } else if (counts[value]) {
-              cols += '<col span="' + counts[value] + '">'; //Constant.LanguageData[lang][value]
-              headerCells += Utils.format(headerCell, [Constant.LanguageData[lang][value], Constant.BuildingData[value].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData[value].buildingId]);
+              cols += '<col span="' + counts[value] + '">';
+              return Utils.format(headerCell, [Constant.LanguageData[lang][value], Constant.BuildingData[value].icon, counts[value], "?view=buildingDetail&helpId=1&buildingId=" + Constant.BuildingData[value].buildingId]);
             }
-          });
-          if (cols !== '') {
-            colgroup += '<colgroup>' + cols + '</colgroup>';
-          }
-        }
+            return '';
+          }).join('');
+          if (cols !== '') colgroup += '<colgroup>' + cols + '</colgroup>';
+          return cells;
+        }).join('');
         return colgroup + Utils.format(headerRow, [Constant.LanguageData[lang].towns, Constant.LanguageData[lang].actionP, headerCells]);
       }
 
       function getBody() {
-        var body = '';
-        $.each(database.cities, function (cityId, city) {
-          var rowCells = '';
-          for (var category in buildingOrder) {
-            $.each(buildingOrder[category], function (index, value) {
-              if ((value == 'productionBuilding' || value == 'colonyBuilding') && !database.settings.compressedBuildingList.value) return false;
+        return Object.keys(database.cities).map(function (cityId) {
+          var city = database.cities[cityId];
+          var rowCells = Object.keys(buildingOrder).map(function (category) {
+            return buildingOrder[category].map(function (value) {
+              if ((value == 'productionBuilding' || value == 'colonyBuilding') && !database.settings.compressedBuildingList.value) return '';
               var i = 0;
-              while (i < counts[value]) {
+              var parts = '';
+              while (i < (counts[value] || 0)) {
                 var cssClass = '';
                 if (value == 'colonyBuilding') {
                   cssClass = city.isCapital ? Constant.Buildings.PALACE : Constant.Buildings.GOVERNORS_RESIDENCE;
                 } else if (value == 'productionBuilding') {
                   switch (city.getTradeGoodID) {
-                    case 1:
-                      cssClass = Constant.Buildings.WINERY;
-                      break;
-                    case 2:
-                      cssClass = Constant.Buildings.STONEMASON;
-                      break;
-                    case 3:
-                      cssClass = Constant.Buildings.GLASSBLOWER;
-                      break;
-                    case 4:
-                      cssClass = Constant.Buildings.ALCHEMISTS_TOWER;
-                      break;
+                    case 1: cssClass = Constant.Buildings.WINERY; break;
+                    case 2: cssClass = Constant.Buildings.STONEMASON; break;
+                    case 3: cssClass = Constant.Buildings.GLASSBLOWER; break;
+                    case 4: cssClass = Constant.Buildings.ALCHEMISTS_TOWER; break;
+                    default: cssClass = value;
                   }
                 } else {
                   cssClass = value;
                 }
                 cssClass += +i;
-                rowCells += Utils.format(buildingCell, [cssClass]);
+                parts += Utils.format(buildingCell, [cssClass]);
                 i++;
               }
-            });
-          }
-          body += Utils.format(buildingRow, [city.getId, rowCells, city._name]);
-        });
-        return body;
+              return parts;
+            }).join('');
+          }).join('');
+          return Utils.format(buildingRow, [city.getId, rowCells, city._name]);
+        }).join('');
       }
+
+      return Utils.format(table, [getHead(), getBody()]);
     },
     AddIslandCSS: function () {
       if (!(/.*view=island.*/.test(window.document.location)))
@@ -3782,57 +3789,57 @@
         var upgradeSuccessCheck;
         var href = this.getAttribute('href');
         if (href !== '#') {
-          var params = $.decodeUrlParam(href);
+        var params = $.decodeUrlParam(href);
           if (params['function'] === "upgradeBuilding") {
             upgradeSuccessCheck = (function upgradeSuccess() {
               var p = params;
-              return function (response) {
+          return function (response) {
                 var len = response.length;
                 var feedback = 0;
                 while (len--) {
                   if (response[len][0] == 'provideFeedback') {
                     feedback = response[len][1][0].type;
-                    break;
-                  }
-                }
+                break;
+              }
+            }
                 if (feedback == 10) { //success
                   render.updateChangesForCityBuilding(p.cityId || ikariam.getCurrentCity, []);
                 }
-                events('ajaxResponse').unsub(upgradeSuccessCheck);
-              };
+            events('ajaxResponse').unsub(upgradeSuccessCheck);
+          };
             })();
           }
-          events('ajaxResponse').sub(upgradeSuccessCheck);
+        events('ajaxResponse').sub(upgradeSuccessCheck);
         }
       });
       render.mainContentBox.on('click', 'td.city_name span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var classes = target.parents('td').attr('class');
-        var params = { cityId: city.getId };
-        if (!city.isCurrentCity) {
-          $("#js_cityIdOnChange").val(city.getId);
-          if (unsafeWindow.ikariam.templateView) {
-            if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
-              params.templateView = unsafeWindow.ikariam.templateView.id;
-              if (ikariam.viewIsCity) {
-                params.islandId = city.getIslandID;
-                params.view = unsafeWindow.ikariam.templateView.id;
-                params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
-              } else {
-                params.currentIslandId = ikariam.getCurrentCity.getIslandID;
+          var params = { cityId: city.getId };
+          if (!city.isCurrentCity) {
+            $("#js_cityIdOnChange").val(city.getId);
+            if (unsafeWindow.ikariam.templateView) {
+              if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
+                params.templateView = unsafeWindow.ikariam.templateView.id;
+                if (ikariam.viewIsCity) {
+                  params.islandId = city.getIslandID;
+                  params.view = unsafeWindow.ikariam.templateView.id;
+                  params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
+                } else {
+                  params.currentIslandId = ikariam.getCurrentCity.getIslandID;
+                }
               }
             }
+            ikariam.loadUrl(true, ikariam.mainView, params);
           }
-          ikariam.loadUrl(true, ikariam.mainView, params);
-        }
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.transport', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('td').parents('tr').attr('id').split('_').pop());
         if (!city.isCurrentCity && ikariam.getCurrentCity) {
-          ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
-        }
+            ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
+          }
         return false;
       }).on('click', 'td.empireactions div[class*=deployment]', function (event) {
         var target = $(event.target);
@@ -3842,10 +3849,10 @@
           return false;
         }
         var params = {
-          cityId: ikariam.CurrentCityId,
-          view: 'deployment',
-          deploymentType: type,
-          destinationCityId: city.getId
+            cityId: ikariam.CurrentCityId,
+            view: 'deployment',
+            deploymentType: type,
+            destinationCityId: city.getId
         };
         ikariam.loadUrl(true, null, params);
       });
@@ -3858,7 +3865,7 @@
           view: 'worldmap_iso'
         };
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.island', function (event) {
         var target = $(event.target);
         var className = target.parents('td').attr('class').split(' ').pop();
@@ -3868,7 +3875,7 @@
           view: 'island'
         };
         ikariam.loadUrl(true, null, params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.city', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3877,7 +3884,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.population_happiness', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3886,7 +3893,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.research span', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3895,7 +3902,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.barracks', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3904,7 +3911,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.shipyard', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3934,20 +3941,20 @@
         var params = {
           cityId: city.getId
         };
-        if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
-          params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
-          params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          params.islandId = city.getIslandID;
-        } else if (ikariam.viewIsIsland) {
-          params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+          if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
+            params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
+            params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+            params.islandId = city.getIslandID;
+          } else if (ikariam.viewIsIsland) {
+            params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
-        ikariam.loadUrl(true, ikariam.mainView, params);
-        render.AddIslandCSS();
-        return false;
+          ikariam.loadUrl(true, ikariam.mainView, params);
+          render.AddIslandCSS();
+          return false;
       }).on('click', 'td.empireactions div.islandgood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3962,13 +3969,13 @@
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
           if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-        return false;
+          return false;
       }).on('click', 'td.empireactions div.islandwood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3982,24 +3989,24 @@
           params.islandId = city.getIslandID;
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        }
+            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-        return false;
+          return false;
       });
       $('#empire_Tabs').on('click', 'td.building span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var className = target.parents('td').attr('class').split(' ').pop();
-        var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
-        var params = building.getUrlParams;
-        if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-        ikariam.loadUrl(true, 'city', params);
-        return false;
+          var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
+          var params = building.getUrlParams;
+          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+          ikariam.loadUrl(true, 'city', params);
+          return false;
       });
     },
 
