@@ -25,6 +25,8 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 // @require              https://github.com/jacobped/ika-scripts/raw/576b3fdf3b1b5332c3cdcfb5a18ad239800e6bec/src/js/waitForIkariamModel.user.js
+// 
+// @require              https://github.com/jacobped/empire-overview/raw/1af4183e7454f41971d494ab9dbb9b91ad05aeb4/data/programData.js
 // @require              https://github.com/jacobped/empire-overview/raw/eb36111510017382c071098ef717c373278ec82c/data/css.js
 //
 // @version              1.2008
@@ -5008,8 +5010,8 @@
   /***********************************************************************************************************************
    * Constants
    **********************************************************************************************************************/
-  var Constant = empire_asset_program_data;
-  
+  var Constant = empire_asset_program_data(ikariam.Language);
+  if (!Constant) throw new Error('empire_asset_program_data not found — ensure data/programData.js is @require-d and exposes window.empire_asset_program_data');
 
   /***********************************************************************************************************************
    * Main Init
