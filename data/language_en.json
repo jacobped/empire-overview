@@ -1,0 +1,17 @@
+{
+  "en": {
+    "chronosForge": "Chronos Forge",
+    "shrineOfOlympus": "Gods' Shrine",
+    "dockyard": "Dockyard",
+    "buildings": "Buildings",
+    "economy": "Economy",
+    "military": "Military",
+    "towns": "Towns",
+    "townHall": "Town Hall",
+    "palace": "Palace",
+    "tavern": "Tavern",
+    "museum": "Museum",
+    "academy": "Academy"
+    /* ... paste the full set of language keys/values from the original Constant.LanguageData.en here ... */
+  }
+}
