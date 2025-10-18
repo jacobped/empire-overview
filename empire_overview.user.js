@@ -154,14 +154,20 @@
   var __cachedModel = null;
   var __modelReadyPromise = null;
 
-  function getModelSync() {
+  // Lightweight synchronous accessor for the cached model only.
+  // Use whenModelReady() if you need to wait for the model to become available.
+  function getCachedModel() {
     if (__cachedModel) return __cachedModel;
     if (__WaitLib && typeof __WaitLib.getModelSync === 'function') {
+      // external lib may still provide a sync accessor
       __cachedModel = __WaitLib.getModelSync();
       return __cachedModel;
     }
-    // best-effort synchronous read (may be null)
-    __cachedModel = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+    try {
+      __cachedModel = (unsafeWindow.ikariam && unsafeWindow.ikariam.model) || null;
+    } catch (e) {
+      __cachedModel = null;
+    }
     return __cachedModel;
   }
 
@@ -4320,12 +4326,40 @@
       if (ikariam.CurrentCityId !== params.cityId) {
         paramList.action = 'header';
         paramList.function = 'changeCurrentCity';
-        // read actionRequest from cached model if available (safe synchronous access)
-        var model = getModelSync();
-        if (model) paramList.actionRequest = model.actionRequest;
+        // Prefer cached model; if actionRequest is not available synchronously,
+        // wait for the model and then navigate. This avoids racing with model init.
+        var model = getCachedModel();
+        var doNavigate = function () {
+          if (model && model.actionRequest) paramList.actionRequest = model.actionRequest;
+          paramList.currentCityId = ikariam.CurrentCityId;
+          paramList.oldView = ikariam.mainView;
+          if (mainView !== undefined && mainView !== ikariam.mainView) {
+            paramList.oldBackgroundView = ikariam.mainView;
+            paramList.backgroundView = mainView;
+            ajax = false;
+          }
+          $.extend(paramList, params);
+          var url = '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&');
+          if (ajax) {
+            gotoAjaxURL(url);
+          } else {
+            gotoURL(ikariam.url() + url);
+          }
+        };
+        if (!model || !model.actionRequest) {
+          // wait for model and then navigate (fall back to navigating without actionRequest)
+          return whenModelReady().then(function (m) {
+            model = m || getCachedModel();
+            doNavigate();
+          }).catch(function () {
+            // fallback: navigate anyway
+            doNavigate();
+          });
+        }
         paramList.currentCityId = ikariam.CurrentCityId;
         paramList.oldView = ikariam.mainView;
       }
+      // If we reached here, model/actionRequest already handled above, so perform navigation.
       if (mainView !== undefined && mainView !== ikariam.mainView) {
         paramList.oldBackgroundView = ikariam.mainView;
         paramList.backgroundView = mainView;
@@ -4333,13 +4367,9 @@
       }
       $.extend(paramList, params);
       if (ajax) {
-        gotoAjaxURL('?' + $.map(paramList, function (value, key) {
-          return key + '=' + value;
-        }).join('&'));
+        gotoAjaxURL('?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
       } else {
-        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) {
-          return key + '=' + value;
-        }).join('&'));
+        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
       }
       function gotoURL(url) {
         window.location.assign(url);
