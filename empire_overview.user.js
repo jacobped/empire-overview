@@ -146,9 +146,6 @@
   var timing = false;
   if (!unsafeWindow) unsafeWindow = window;
 
-  // small helpers to access ikariam.model safely (use shared lib when available)
-  const __WaitLib = (typeof __IkariamWaitLib !== 'undefined') ? __IkariamWaitLib : (unsafeWindow && unsafeWindow.__IkariamWaitLib) || (window && window.__IkariamWaitLib) || null;
-
   // Simplified: load the model directly from unsafeWindow. Disable the external wait module/polling.
   var __cachedModel = null;
 
