@@ -2145,6 +2145,37 @@
       army: {}
     },
     _cssResLoaded: false,
+    // Add cached selectors
+    _cachedSelectors: {
+      $empireBoard: null,
+      $empireTabs: null,
+      $resTab: null,
+      $buildTab: null,
+      $armyTab: null,
+      $settingsTab: null,
+      $helpTab: null
+    },
+
+    // Add method to initialize cached selectors
+    _initCachedSelectors: function() {
+      this._cachedSelectors.$empireBoard = $('#empireBoard');
+      this._cachedSelectors.$empireTabs = $('#empire_Tabs');
+      this._cachedSelectors.$resTab = $('#ResTab');
+      this._cachedSelectors.$buildTab = $('#BuildTab');
+      this._cachedSelectors.$armyTab = $('#ArmyTab');
+      this._cachedSelectors.$settingsTab = $('#SettingsTab');
+      this._cachedSelectors.$helpTab = $('#HelpTab');
+    },
+    
+    // Add method to get cached selector with lazy initialization
+    _getCachedSelector: function(name) {
+      if (!this._cachedSelectors[name] || this._cachedSelectors[name].length === 0) {
+        // Re-initialize if selector is null or empty
+        this._initCachedSelectors();
+      }
+      return this._cachedSelectors[name];
+    },
+
     toolTip: {
       elem: null,
       timer: null,
@@ -3626,7 +3657,8 @@
       }
     },
     redrawSettings: function () {
-      $('#SettingsTab').html(render.getSettingsTable());
+      var $settingsTab = this._getCachedSelector('$settingsTab');
+      $settingsTab.html(render.getSettingsTable());
       $("#empire_Reset_Button").button({ icons: { primary: "ui-icon-alert" }, text: true });
       $("#empire_Website_Button").button({ icons: { primary: "ui-icon-home" }, text: true });
       $("#empire_Update_Button").button({ icons: { primary: "ui-icon-info" }, text: true });
