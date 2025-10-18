@@ -515,7 +515,7 @@
             city.getResource(Constant.Resources[resource]).increment(this.getResource(Constant.Resources[resource]));
           }
           this._updatedCity = true;
-          city = database.getCityFromId(this.originCityId);
+          city = database.getCityFromId(this.getOriginCityId);
           if (city) {
             city.updateActionPoints(city.getAvailableActions + 1);
           }
