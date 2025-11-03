@@ -178,43 +178,66 @@
 
   /**
    * Load an ES module from a user-script @resource entry and initialize it.
-   * The function itself is not declared async but returns a Promise so callers
-   * can chain .then/.catch. It revokes the blob URL and calls init/default
-   * if present, passing GM_MODULE_HELPERS.
-   *
-   * Usage: loadResourceModule('cssScript').then(mod => { ... })
+   * Uses lazy loading and yields control to prevent blocking.
    */
   async function loadResourceModule(resourceName) {
+    // Yield control to browser to prevent blocking
+    await new Promise(resolve => setTimeout(resolve, 0));
+
     try {
       let text = null;
+
       if (typeof GM_getResourceText === 'function') {
-        text = GM_getResourceText(resourceName);
+        // Wrap synchronous call in a timeout to prevent blocking
+        text = await new Promise((resolve, reject) => {
+          setTimeout(() => {
+            try {
+              resolve(GM_getResourceText(resourceName));
+            } catch (e) {
+              reject(e);
+            }
+          }, 0);
+        });
       } else if (typeof GM_getResourceURL === 'function') {
-        // GM_getResourceURL may return a blob URL; fetch it to get the text.
         const url = GM_getResourceURL(resourceName);
         const resp = await fetch(url);
         text = await resp.text();
       } else {
-        return Promise.reject(new Error('No method available to load resource: ' + resourceName));
+        throw new Error('No method available to load resource: ' + resourceName);
       }
+
+      // Yield control again before blob creation
+      await new Promise(resolve => setTimeout(resolve, 0));
 
       const blob = new Blob([text], { type: 'text/javascript' });
       const url = URL.createObjectURL(blob);
+
       try {
         const mod = await import(url);
-        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        URL.revokeObjectURL(url);
+
+        // Initialize module synchronously before returning
         if (mod && typeof mod.init === 'function') {
-          try { mod.init(GM_MODULE_HELPERS); } catch (e) { console.warn('module.init failed', e); }
+          try {
+            mod.init(GM_MODULE_HELPERS);
+          } catch (e) {
+            console.warn('module.init failed', e);
+          }
         } else if (mod && typeof mod.default === 'function') {
-          try { mod.default(GM_MODULE_HELPERS); } catch (e) { console.warn('module.default failed', e); }
+          try {
+            mod.default(GM_MODULE_HELPERS);
+          } catch (e) {
+            console.warn('module.default failed', e);
+          }
         }
+
         return mod;
       } catch (err) {
-        try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ }
+        URL.revokeObjectURL(url);
         throw err;
       }
     } catch (e) {
-      return Promise.reject(e);
+      throw e;
     }
   }
 
