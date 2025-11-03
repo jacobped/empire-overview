@@ -2177,7 +2177,7 @@
     },
 
     // Add method to initialize cached selectors
-    _initCachedSelectors: function() {
+    _initCachedSelectors: function () {
       this._cachedSelectors.$empireBoard = $('#empireBoard');
       this._cachedSelectors.$empireTabs = $('#empire_Tabs');
       this._cachedSelectors.$resTab = $('#ResTab');
@@ -2186,9 +2186,9 @@
       this._cachedSelectors.$settingsTab = $('#SettingsTab');
       this._cachedSelectors.$helpTab = $('#HelpTab');
     },
-    
+
     // Add method to get cached selector with lazy initialization
-    _getCachedSelector: function(name) {
+    _getCachedSelector: function (name) {
       if (!this._cachedSelectors[name] || this._cachedSelectors[name].length === 0) {
         // Re-initialize if selector is null or empty
         this._initCachedSelectors();
@@ -3236,7 +3236,7 @@
       }
       this.AttachClickHandlers();
     },
-        // small generators to produce per-resource and per-city fragments (DRY)
+    // small generators to produce per-resource and per-city fragments (DRY)
     _makeResourceCell: function (resourceName) {
       return '<td class="resource ' + resourceName + '">\n' +
         '    <span class="icon safeImage"></span>\n' +
@@ -3264,7 +3264,7 @@
       var progSci = '';
       if (city.getBuildingFromName && city.getBuildingFromName(Constant.Buildings.ACADEMY)) {
         progSci = '<div class="progressbarSci ui-progressbar ui-widget ui-widget-content ui-corner-all" data-tooltip="dynamic">' +
-                  '<div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div></div>';
+          '<div class="ui-progressbar-value ui-widget-header ui-corner-left" style="width: 95%"></div></div>';
       }
       var wonder_size = 25;
       var row = '<tr id="resource_{0}">\n' +
@@ -3812,57 +3812,57 @@
         var upgradeSuccessCheck;
         var href = this.getAttribute('href');
         if (href !== '#') {
-        var params = $.decodeUrlParam(href);
+          var params = $.decodeUrlParam(href);
           if (params['function'] === "upgradeBuilding") {
             upgradeSuccessCheck = (function upgradeSuccess() {
               var p = params;
-          return function (response) {
+              return function (response) {
                 var len = response.length;
                 var feedback = 0;
                 while (len--) {
                   if (response[len][0] == 'provideFeedback') {
                     feedback = response[len][1][0].type;
-                break;
-              }
-            }
+                    break;
+                  }
+                }
                 if (feedback == 10) { //success
                   render.updateChangesForCityBuilding(p.cityId || ikariam.getCurrentCity, []);
                 }
-            events('ajaxResponse').unsub(upgradeSuccessCheck);
-          };
+                events('ajaxResponse').unsub(upgradeSuccessCheck);
+              };
             })();
           }
-        events('ajaxResponse').sub(upgradeSuccessCheck);
+          events('ajaxResponse').sub(upgradeSuccessCheck);
         }
       });
       render.mainContentBox.on('click', 'td.city_name span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var classes = target.parents('td').attr('class');
-          var params = { cityId: city.getId };
-          if (!city.isCurrentCity) {
-            $("#js_cityIdOnChange").val(city.getId);
-            if (unsafeWindow.ikariam.templateView) {
-              if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
-                params.templateView = unsafeWindow.ikariam.templateView.id;
-                if (ikariam.viewIsCity) {
-                  params.islandId = city.getIslandID;
-                  params.view = unsafeWindow.ikariam.templateView.id;
-                  params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
-                } else {
-                  params.currentIslandId = ikariam.getCurrentCity.getIslandID;
-                }
+        var params = { cityId: city.getId };
+        if (!city.isCurrentCity) {
+          $("#js_cityIdOnChange").val(city.getId);
+          if (unsafeWindow.ikariam.templateView) {
+            if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
+              params.templateView = unsafeWindow.ikariam.templateView.id;
+              if (ikariam.viewIsCity) {
+                params.islandId = city.getIslandID;
+                params.view = unsafeWindow.ikariam.templateView.id;
+                params.type = unsafeWindow.ikariam.templateView.id == 'resource' ? 'resource' : city.getTradeGoodID;
+              } else {
+                params.currentIslandId = ikariam.getCurrentCity.getIslandID;
               }
             }
-            ikariam.loadUrl(true, ikariam.mainView, params);
           }
-          return false;
+          ikariam.loadUrl(true, ikariam.mainView, params);
+        }
+        return false;
       }).on('click', 'td.empireactions div.transport', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('td').parents('tr').attr('id').split('_').pop());
         if (!city.isCurrentCity && ikariam.getCurrentCity) {
-            ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
-          }
+          ikariam.loadUrl(true, ikariam.mainView, { view: 'transport', destinationCityId: city.getId, templateView: Constant.Buildings.TRADING_PORT });
+        }
         return false;
       }).on('click', 'td.empireactions div[class*=deployment]', function (event) {
         var target = $(event.target);
@@ -3872,10 +3872,10 @@
           return false;
         }
         var params = {
-            cityId: ikariam.CurrentCityId,
-            view: 'deployment',
-            deploymentType: type,
-            destinationCityId: city.getId
+          cityId: ikariam.CurrentCityId,
+          view: 'deployment',
+          deploymentType: type,
+          destinationCityId: city.getId
         };
         ikariam.loadUrl(true, null, params);
       });
@@ -3888,7 +3888,7 @@
           view: 'worldmap_iso'
         };
         ikariam.loadUrl(true, 'city', params);
-          return false;
+        return false;
       }).on('click', 'td.empireactions div.island', function (event) {
         var target = $(event.target);
         var className = target.parents('td').attr('class').split(' ').pop();
@@ -3898,7 +3898,7 @@
           view: 'island'
         };
         ikariam.loadUrl(true, null, params);
-          return false;
+        return false;
       }).on('click', 'td.empireactions div.city', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3907,7 +3907,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-          return false;
+        return false;
       }).on('click', 'td.population_happiness', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3916,7 +3916,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-          return false;
+        return false;
       }).on('click', 'td.research span', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3925,7 +3925,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-          return false;
+        return false;
       }).on('click', 'td.empireactions div.barracks', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3934,7 +3934,7 @@
         var params = building.getUrlParams;
         if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
         ikariam.loadUrl(true, 'city', params);
-          return false;
+        return false;
       }).on('click', 'td.empireactions div.shipyard', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3964,20 +3964,20 @@
         var params = {
           cityId: city.getId
         };
-          if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
-            params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
-            params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-            params.islandId = city.getIslandID;
-          } else if (ikariam.viewIsIsland) {
-            params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-          }
+        if (ikariam.CurrentCityId == city.getId || !ikariam.viewIsIsland) {
+          params.type = resource == Constant.Resources.WOOD ? 'resource' : city.getTradeGoodID;
+          params.view = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+          params.islandId = city.getIslandID;
+        } else if (ikariam.viewIsIsland) {
+          params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
+          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+        }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
-          ikariam.loadUrl(true, ikariam.mainView, params);
-          render.AddIslandCSS();
-          return false;
+        ikariam.loadUrl(true, ikariam.mainView, params);
+        render.AddIslandCSS();
+        return false;
       }).on('click', 'td.empireactions div.islandgood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -3992,13 +3992,13 @@
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
           if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-          }
+        }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-          return false;
+        return false;
       }).on('click', 'td.empireactions div.islandwood', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
@@ -4012,24 +4012,24 @@
           params.islandId = city.getIslandID;
         } else if (ikariam.viewIsIsland) {
           params.templateView = resource == Constant.Resources.WOOD ? 'resource' : 'tradegood';
-            if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-          }
+          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+        }
         if (ikariam.viewIsIsland) {
           params.currentIslandId = ikariam.getCurrentCity.getIslandID;
         }
         ikariam.loadUrl(true, ikariam.mainView, params);
         render.AddIslandCSS();
-          return false;
+        return false;
       });
       $('#empire_Tabs').on('click', 'td.building span.clickable', function (event) {
         var target = $(event.target);
         var city = database.getCityFromId(target.parents('tr').attr('id').split('_').pop());
         var className = target.parents('td').attr('class').split(' ').pop();
-          var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
-          var params = building.getUrlParams;
-          if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
-          ikariam.loadUrl(true, 'city', params);
-          return false;
+        var building = city.getBuildingsFromName(className.slice(0, -1))[className.charAt(className.length - 1)];
+        var params = building.getUrlParams;
+        if (unsafeWindow.ikariam.templateView) unsafeWindow.ikariam.templateView.id = null;
+        ikariam.loadUrl(true, 'city', params);
+        return false;
       });
     },
 
@@ -4343,8 +4343,8 @@
       if (model) {
         model.ResourceProduction_updateGlobalData = model.updateGlobalData;
         model.updateGlobalData = function (dataSet) {
-          ResourceProduction.repositionSpan(dataSet.producedTradegood); 
-          unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet); 
+          ResourceProduction.repositionSpan(dataSet.producedTradegood);
+          unsafeWindow.ikariam.model.ResourceProduction_updateGlobalData(dataSet);
           ResourceProduction.updateProd();
         };
       } else {
