@@ -8,6 +8,7 @@
 // @description:el       Script for Ikariam 8.x.x, Overview tables for resources, buildings and military inspired by Ikariam Empire Board
 // @icon                 https://www.google.com/s2/favicons?domain=ikariam.com
 // @namespace            Beta
+// @run-at               document-idle
 // @grant                unsafeWindow
 // @grant                GM_getValue
 // @grant                GM_setValue
@@ -31,7 +32,7 @@
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/programData.js
 // @resource             cssScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/css.js
 //
-// @version              1.2010
+// @version              1.2011
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -181,63 +182,42 @@
    * Uses lazy loading and yields control to prevent blocking.
    */
   async function loadResourceModule(resourceName) {
-    // Yield control to browser to prevent blocking
-    await new Promise(resolve => setTimeout(resolve, 0));
-
     try {
-      let text = null;
-
+      let text;
       if (typeof GM_getResourceText === 'function') {
-        // Wrap synchronous call in a timeout to prevent blocking
-        text = await new Promise((resolve, reject) => {
-          setTimeout(() => {
-            try {
-              resolve(GM_getResourceText(resourceName));
-            } catch (e) {
-              reject(e);
-            }
-          }, 0);
-        });
+        text = GM_getResourceText(resourceName);
       } else if (typeof GM_getResourceURL === 'function') {
-        const url = GM_getResourceURL(resourceName);
-        const resp = await fetch(url);
+        const resp = await fetch(GM_getResourceURL(resourceName));
         text = await resp.text();
       } else {
         throw new Error('No method available to load resource: ' + resourceName);
       }
 
-      // Yield control again before blob creation
-      await new Promise(resolve => setTimeout(resolve, 0));
+      // Handle Unicode characters properly by using TextEncoder
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(text);
 
-      const blob = new Blob([text], { type: 'text/javascript' });
-      const url = URL.createObjectURL(blob);
-
-      try {
-        const mod = await import(url);
-        URL.revokeObjectURL(url);
-
-        // Initialize module synchronously before returning
-        if (mod && typeof mod.init === 'function') {
-          try {
-            mod.init(GM_MODULE_HELPERS);
-          } catch (e) {
-            console.warn('module.init failed', e);
-          }
-        } else if (mod && typeof mod.default === 'function') {
-          try {
-            mod.default(GM_MODULE_HELPERS);
-          } catch (e) {
-            console.warn('module.default failed', e);
-          }
-        }
-
-        return mod;
-      } catch (err) {
-        URL.revokeObjectURL(url);
-        throw err;
+      // Convert to base64 safely
+      let base64String = '';
+      const len = uint8Array.length;
+      for (let i = 0; i < len; i++) {
+        base64String += String.fromCharCode(uint8Array[i]);
       }
-    } catch (e) {
-      throw e;
+
+      const dataUrl = `data:text/javascript;base64,${btoa(base64String)}`;
+      const mod = await import(dataUrl);
+
+      // Initialize module
+      if (mod?.init) {
+        mod.init(GM_MODULE_HELPERS);
+      } else if (typeof mod?.default === 'function') {
+        mod.default(GM_MODULE_HELPERS);
+      }
+
+      return mod;
+    } catch (error) {
+      console.error(`Failed to load resource module ${resourceName}:`, error);
+      throw error;
     }
   }
 
