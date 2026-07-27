@@ -29,10 +29,10 @@
 // @require              https://ajax.googleapis.com/ajax/libs/jqueryui/1.9.2/jquery-ui.min.js
 // 
 // Special resource modules
-// @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/programData.js
+// @resource             programDataScript https://github.com/jacobped/empire-overview/raw/fb357d377395900d844fd7cf60d3ec24ee9d385b/data/programData.js
 // @resource             cssScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/css.js
 //
-// @version              1.2012
+// @version              1.2013
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
