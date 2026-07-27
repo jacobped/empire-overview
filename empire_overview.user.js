@@ -32,7 +32,7 @@
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/programData.js
 // @resource             cssScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/css.js
 //
-// @version              1.2011
+// @version              1.2012
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -142,10 +142,14 @@
   /***********************************************************************************************************************
    * Globals
    **********************************************************************************************************************/
-  var debug = false;
-  var log = false;
+  var debug = true;
+  var log = true;
   var timing = false;
   if (!unsafeWindow) unsafeWindow = window;
+
+  // Tab scrolling configuration
+  var MAX_VISIBLE_ROWS = 8;  // Maximum rows before scrollbar appears
+  var ROW_HEIGHT = 37;       // Approximate height of each row in pixels (adjust as needed)
 
   // Simplified: load the model directly from unsafeWindow. Disable the external wait module/polling.
   var __cachedModel = null;
@@ -166,6 +170,23 @@
     return typeof cb === 'function' ? p.then(cb) : p;
   }
 
+  // small gm_log wrapper: prefer GM_log, then global.gm_log, then the page console if available
+  function gm_log(/* ...args */) {
+    const args = Array.prototype.slice.call(arguments);
+    try {
+        if (typeof GM_log === 'function') { GM_log.apply(null, args); return; }
+    } catch (e) {}
+    try {
+        if (global && typeof global.gm_log === 'function') { global.gm_log.apply(global, args); return; }
+    } catch (e) {}
+    try {
+        const consoleRef = (typeof unsafeWindow !== 'undefined' && unsafeWindow.console) || window.console || global.console;
+        if (consoleRef && typeof consoleRef.log === 'function') {
+            consoleRef.log('[empire_overview]', ...args);
+        }
+    } catch (e) {}
+  }
+
   // Generic GM helpers shared by all resource modules
   const GM_MODULE_HELPERS = {
     addStyle: (...args) => GM_addStyle(...args),
@@ -174,7 +195,7 @@
     deleteValue: (...args) => GM_deleteValue(...args),
     xmlHttpRequest: (...args) => GM_xmlhttpRequest(...args),
     openInTab: (...args) => GM_openInTab(...args),
-    log: (...args) => GM_log(...args)
+    log: (...args) => gm_log(...args)
   };
 
   /**
@@ -216,7 +237,7 @@
 
       return mod;
     } catch (error) {
-      console.error(`Failed to load resource module ${resourceName}:`, error);
+      gm_log(`Failed to load resource module ${resourceName}:`, error);
       throw error;
     }
   }
@@ -1880,18 +1901,24 @@
       return ret;
     },
     log: function (val) {
-      if (debug) console.log('empire: ', $.makeArray(arguments));
+      if (debug) gm_log('empire: ', $.makeArray(arguments));
       if (log) {
-        if (this.logger) {
-          this.logger.val(val + '\n' + this.logger.val());
-          return true;
-        } else {
-          render.$tabs.append($(document.createElement("div")).attr('id', 'empire_Log'));
-          $('#empire_Log').html('<div><textarea id="empire_Logbox" rows="20" cols="120"></textarea></div>');
-          $('<li><a href="#empire_Log"><img class="ui-icon ui-icon-info"/></a></li>').appendTo("#empire_Tabs .ui-tabs-nav");
-          render.$tabs.tabs('refresh');
-          this.logger = $('#empire_Logbox');
-          return this.log(val);
+        try {
+          if (!render.$tabs || !render.$tabs.length) {
+            if (typeof render.DrawContentBox === 'function') {
+              render.DrawContentBox();
+            }
+          }
+          if (!render.$tabs || !render.$tabs.length) {
+            throw new Error('render tabs not initialized');
+          }
+          if (this.logger && this.logger.length) {
+            this.logger.append($('<div></div>').text(val));
+            return true;
+          }
+        } catch (e) {
+          if (debug) gm_log('empire.log failed', e);
+          return false;
         }
       }
     },
@@ -1901,19 +1928,28 @@
       this.log(e.stack);
       this.log('****** End ******');
       if (debug) {
-        console.error('****** Error raised in ' + func + ' ******');
-        console.error(e.name + ' : ' + e.message);
-        console.error(e.stack);
-        console.error('****** End ******');
+        gm_log('****** Error raised in ' + func + ' ******');
+        gm_log(e.name + ' : ' + e.message);
+        gm_log(e.stack);
+        gm_log('****** End ******');
       }
     },
     time: function (func, name) {
-      if (timing) console.time(name);
+      var startTime = null;
+      if (timing) {
+        startTime = Date.now();
+        gm_log('[timing]', name, 'start');
+      }
       var ret = func();
-      if (timing) console.timeEnd(name);
+      if (timing) {
+        gm_log('[timing]', name, 'end', (Date.now() - startTime) + 'ms');
+      }
       return ret;
     },
     Init: function () {
+      if (log) {
+        this.log('Empire Overview startup');
+      }
       ikariam.Init();
       render.Init();
       database.Init(ikariam.Host());
@@ -2679,6 +2715,7 @@
       }.bind(render));
       events(Constant.Events.MODEL_AVAILABLE).sub(function () {
         this.DrawTables();
+        this.InitLogbox();
         this.setCommonData();
         this.RestoreDisplayOptions();
         this.startMonitoringChanges();
@@ -3170,10 +3207,13 @@
         $('#ArmyTab').html(this.getArmyTable());
         $('#ResTab').html(this.getResourceTable());
         $('#BuildTab').html(this.getBuildingTable());
+        $('#LogTab').html('<div style="padding: 8px; font-family: monospace; font-size: 12px; line-height: 1.5;"></div>');
         $('#WorldmapTab').html(this.getWorldmapTable());
         this.DrawSettings();
         this.DrawHelp();
         this.toolTip.init();
+        // Apply scrollbar styling to tabs based on row count
+        this.applyTabScrolling();
         $('#ResTab, #BuildTab, #ArmyTab').each(function () {
           $(this).sortable({
             helper: function (e, ui) {
@@ -3215,6 +3255,58 @@
         });
       }
       this.AttachClickHandlers();
+    },
+    applyTabScrolling: function () {
+      // Apply scrolling to tabs while keeping table column alignment intact
+      // Make header and footer sticky while body rows scroll
+      var tabs = ['ResTab', 'BuildTab', 'ArmyTab'];
+      var self = this;
+      
+      $.each(tabs, function (idx, tabId) {
+        var $tab = $('#' + tabId);
+        var $table = $tab.find('table');
+        if ($table.length === 0) return; // Skip if no table found
+        
+        var $tbody = $table.find('tbody');
+        var $rows = $tbody.find('tr');
+        var $tfoot = $table.find('tfoot');
+        var rowCount = $rows.length;
+        
+        // Make header sticky
+        $table.find('thead').css({
+          'position': 'sticky',
+          'top': '0',
+          'z-index': '10',
+          'background-color': '#eed6ad'
+        });
+        
+        // Make footer sticky (at bottom)
+        if ($tfoot.length > 0) {
+          $tfoot.css({
+            'position': 'sticky',
+            'bottom': '0',
+            'z-index': '10',
+            'background-color': '#eed6ad'
+          });
+        }
+        
+        // If row count exceeds max, apply scrolling to the entire tab
+        if (rowCount > MAX_VISIBLE_ROWS) {
+          var maxHeight = (MAX_VISIBLE_ROWS * ROW_HEIGHT) + 50; // +50 for header/footer space
+          $tab.css({
+            'max-height': maxHeight + 'px',
+            'overflow-y': 'auto',
+            'overflow-x': 'hidden'
+          });
+        } else {
+          // Remove scrolling if below threshold
+          $tab.css({
+            'max-height': 'none',
+            'overflow-y': 'visible',
+            'overflow-x': 'visible'
+          });
+        }
+      });
     },
     // small generators to produce per-resource and per-city fragments (DRY)
     _makeResourceCell: function (resourceName) {
@@ -3322,7 +3414,23 @@
         return '<tr>\n<td colspan="2"></td>\n<td id="t_sigma" class="total" data-tooltip="dynamic">Σ</td>\n<td id="t_population" class="total"></td><td id="t_growth" class="total"></td>\n<td id="t_research" class="total" data-tooltip="dynamic"></td>\n<td id="t_currentgold" class="total"></td>\n<td id="t_goldincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n<td id="t_currentwood" class="total"></td>\n<td id="t_woodincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentwine" class="total"></td>\n<td id="t_wineincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentmarble" class="total"></td>\n<td id="t_marbleincome" class="total"data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentglass" class="total"></td>\n<td id="t_glassincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n<td id="t_currentsulfur" class="total"></td>\n<td id="t_sulfurincome" class="total" data-tooltip="dynamic">\n  <span class="Green"></span>\n  <span class="Red"></span>\n</td>\n</tr>';
       }
 
-      return Utils.format(tableTpl, [header, getBody(), getFooter()]);
+      // Format header with its placeholder values first
+      var headerValues = [
+        Constant.LanguageData[lang].towns,       // {0}
+        Constant.LanguageData[lang].actionP,     // {1}
+        Constant.LanguageData[lang].population,  // {2}
+        Constant.LanguageData[lang].researchP,   // {3}
+        Constant.LanguageData[lang].finances_,   // {4}
+        Constant.LanguageData[lang].wood_,       // {5}
+        Constant.LanguageData[lang].wine_,       // {6}
+        Constant.LanguageData[lang].marble_,     // {7}
+        Constant.LanguageData[lang].crystal_,    // {8}
+        Constant.LanguageData[lang].sulphur_,    // {9}
+        database.getGlobalData.getLocalisedString('Current form')  // {10}
+      ];
+      var formattedHeader = Utils.format(header, headerValues);
+
+      return Utils.format(tableTpl, [formattedHeader, getBody(), getFooter()]);
     },
     getArmyTable: function () {
       var lang = database.settings.languageChange.value;
@@ -3751,12 +3859,14 @@
                                             <li><a href="#ResTab">'+ Constant.LanguageData[lang].economy + '</a></li>\
                                             <li><a href="#BuildTab">'+ Constant.LanguageData[lang].buildings + '</a></li>\
                                             <li><a href="#ArmyTab">'+ Constant.LanguageData[lang].military + '</a></li>\
+                                            <li><a href="#LogTab"><img class="ui-icon ui-icon-info"/></a></li>\
                                             <li><a href="#SettingsTab" data-tooltip="'+ Constant.LanguageData[lang].options + '"><span class="ui-icon ui-icon-gear"/></a></li>\
 											<li><a href="#HelpTab" data-tooltip="'+ Constant.LanguageData[lang].help + '"><span class="ui-icon ui-icon-help"/></a></li>\
                                         </ul>\
                                         <div id="ResTab"></div>\
                                         <div id="BuildTab"></div>\
                                         <div id="ArmyTab"></div>\
+										<div id="LogTab"></div>\
 										<div id="WorldmapTab"></div>\
                                         <div id="SettingsTab"></div>\
                                         <div id="HelpTab"></div>\
@@ -3785,6 +3895,14 @@
             render.mainContentBox.css('z-index', "2");
           }
         });
+      }
+    },
+    InitLogbox: function () {
+      // Initialize the logbox content div reference
+      if (!this.logger) {
+        this.logger = $('#LogTab > div');
+        // Add initial message directly to avoid recursion
+        this.logger.append($('<div></div>').text('Empire Overview initialized'));
       }
     },
     AttachClickHandlers: function () {
@@ -4256,7 +4374,7 @@
           // The actual work is done in the cssModule's loadCss function.
           cssModule.loadCss(database, isChrome, Constant);
         } else {
-          console.warn('css module has no loadCss export');
+          gm_log('css module has no loadCss export');
         }
       } catch (e) {
         empire.error('cssModule.loadCss', e);
@@ -4328,10 +4446,10 @@
           ResourceProduction.updateProd();
         };
       } else {
-        console.warn('initResourceProduction: ikariam.model not present when initializing');
+        gm_log('initResourceProduction: ikariam.model not present when initializing');
       }
     } catch (e) {
-      empire && empire.error ? empire.error('initResourceProduction', e) : console.error(e);
+      empire && empire.error ? empire.error('initResourceProduction', e) : gm_log(e);
     }
   }
 
@@ -4565,14 +4683,16 @@
         var view, html, data, template;
         var len = response.length;
         var oldCity = this._currentCity;
+        // gm_log('ajaxResponse-data', response);
         while (len) {
           len--;
           switch (response[len][0]) {
             case 'updateGlobalData':
-              this._currentCity = parseInt(response[len][1].backgroundData.id);
-              var cityData = $.extend({}, response[len][1].backgroundData, response[len][1].headerData);
-              events('updateCityData').pub(this.CurrentCityId, $.extend({}, cityData));
-              events('updateBuildingData').pub(this.CurrentCityId, cityData.position);
+              // TODO: this does no longer work
+              // this._currentCity = parseInt(response[len][1].backgroundData.id);
+              // var cityData = $.extend({}, response[len][1].backgroundData, response[len][1].headerData);
+              // events('updateCityData').pub(this.CurrentCityId, $.extend({}, cityData));
+              // events('updateBuildingData').pub(this.CurrentCityId, cityData.position);
               break;
             case 'changeView':
               view = response[len][1][0];
@@ -5192,7 +5312,7 @@
           }
           database.settings.cityOrder.value = order;
         } catch (e) {
-          empire && empire.error ? empire.error('FetchAllTowns', e) : console.error(e);
+          empire && empire.error ? empire.error('FetchAllTowns', e) : gm_log(e);
         }
       };
 
@@ -5201,7 +5321,7 @@
         run(model);
       } else {
         whenModelReady(function (m) { run(m || getCachedModel()); }).catch(function (err) {
-          console.warn('FetchAllTowns: waitForIkariamModel failed, attempting run anyway', err);
+          gm_log('FetchAllTowns: waitForIkariamModel failed, attempting run anyway', err);
           run(getCachedModel());
         });
       }
@@ -5244,7 +5364,7 @@
    * Main Init
    **********************************************************************************************************************/
   if (debug) {
-    delete unsafeWindow.console;
+    // delete unsafeWindow.console;
     unsafeWindow.empire = {
       s: empire,
       db: database,
@@ -5335,7 +5455,7 @@
       } catch (err) {
         // If either failed, log and still attempt initialization — errors will be handled
         // in the Init functions. This keeps behavior explicit and avoids silent failures.
-        console.error('Empire Overview initialization: waiting for Constant or model failed', err);
+        gm_log('Empire Overview initialization: waiting for Constant or model failed', err);
       }
       try { empire.Init(); } catch (e) { empire.error('Init', e); }
       try { empire_DomInit(); } catch (e) { empire.error('DomInit', e); }
