@@ -32,7 +32,7 @@
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/fb357d377395900d844fd7cf60d3ec24ee9d385b/data/programData.js
 // @resource             cssScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/css.js
 //
-// @version              1.2013
+// @version              1.2014
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -2725,6 +2725,7 @@
     startMonitoringChanges: function () {
       events(Constant.Events.TAB_CHANGED).sub(function (tab) {
         this.stopResourceCounters();
+        gm_log('Tab changed to ' + tab);
         switch (tab) {
           case 0:
             this.startResourceCounters();
@@ -3941,6 +3942,8 @@
         if (!city.isCurrentCity) {
           $("#js_cityIdOnChange").val(city.getId);
           if (unsafeWindow.ikariam.templateView) {
+            params.templateView = unsafeWindow.ikariam.templateView.id;
+
             if (unsafeWindow.ikariam.templateView.id === 'tradegood' || unsafeWindow.ikariam.templateView.id === 'resource') {
               params.templateView = unsafeWindow.ikariam.templateView.id;
               if (ikariam.viewIsCity) {
@@ -3950,9 +3953,20 @@
               } else {
                 params.currentIslandId = ikariam.getCurrentCity.getIslandID;
               }
+            } else if (unsafeWindow.ikariam.templateView.id === 'cityMilitary') {
+              params.currentTab = unsafeWindow.ikariam.model.viewParams.currentTab;
+              params.activeTab = unsafeWindow.ikariam.model.viewParams.activeTab;
             }
           }
+          gm_log('Loading city ' + city.getId + ' with params: ' + JSON.stringify(params));
           ikariam.loadUrl(true, ikariam.mainView, params);
+
+          gm_log('Current city ID: ' + ikariam.CurrentCityId + ', Target city ID: ' + city.getId);
+
+          if (city.getId !== ikariam.CurrentCityId) {
+            gm_log('Publishing cityChanged event for cityId: ' + city.getId);
+            events('cityChanged').pub(city.getId);
+          }
         }
         return false;
       }).on('click', 'td.empireactions div.transport', function (event) {
@@ -4469,7 +4483,7 @@
     _TemplateView: null,
     _currentCity: null,
     url: function () {
-      return 'http://' + this.Host() + '/index.php';
+      return 'https://' + this.Host() + '/index.php';
     },
     get mainView() {
       return unsafeWindow.ikariam.backgroundView.id;
@@ -4488,42 +4502,14 @@
       mainView = mainView || ikariam.mainView;
       var paramList = { cityId: ikariam.CurrentCityId };
       if (ikariam.CurrentCityId !== params.cityId) {
+        gm_log('Navigating to city ' + params.cityId + ' from city ' + ikariam.CurrentCityId);
         paramList.action = 'header';
         paramList.function = 'changeCurrentCity';
-        // Prefer cached model; if actionRequest is not available synchronously,
-        // wait for the model and then navigate. This avoids racing with model init.
-        var model = getCachedModel();
-        var doNavigate = function () {
-          if (model && model.actionRequest) paramList.actionRequest = model.actionRequest;
-          paramList.currentCityId = ikariam.CurrentCityId;
-          paramList.oldView = ikariam.mainView;
-          if (mainView !== undefined && mainView !== ikariam.mainView) {
-            paramList.oldBackgroundView = ikariam.mainView;
-            paramList.backgroundView = mainView;
-            ajax = false;
-          }
-          $.extend(paramList, params);
-          var url = '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&');
-          if (ajax) {
-            gotoAjaxURL(url);
-          } else {
-            gotoURL(ikariam.url() + url);
-          }
-        };
-        if (!model || !model.actionRequest) {
-          // wait for model and then navigate (fall back to navigating without actionRequest)
-          return whenModelReady().then(function (m) {
-            model = m || getCachedModel();
-            doNavigate();
-          }).catch(function () {
-            // fallback: navigate anyway
-            doNavigate();
-          });
-        }
+        paramList.actionRequest = unsafeWindow.ikariam.model.actionRequest;
         paramList.currentCityId = ikariam.CurrentCityId;
         paramList.oldView = ikariam.mainView;
+        paramList.backgroundView = ikariam.mainView;
       }
-      // If we reached here, model/actionRequest already handled above, so perform navigation.
       if (mainView !== undefined && mainView !== ikariam.mainView) {
         paramList.oldBackgroundView = ikariam.mainView;
         paramList.backgroundView = mainView;
@@ -4531,14 +4517,37 @@
       }
       $.extend(paramList, params);
       if (ajax) {
-        gotoAjaxURL('?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
+        // gotoAjaxURL(paramList);
+        gotoAjaxURL_old(paramList);
       } else {
-        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) { return key + '=' + value; }).join('&'));
+        gotoURL(ikariam.url() + '?' + $.map(paramList, function (value, key) {
+          return key + '=' + value;
+        }).join('&'));
       }
       function gotoURL(url) {
+        gm_log('Navigating to ' + url + ' via full page load');
         window.location.assign(url);
       }
-      function gotoAjaxURL(url) {
+      function gotoAjaxURL(formData) {
+        formData.ajax = '1';
+        gm_log('Navigating via POST with form data');
+        var formDataStr = $.map(formData, function (value, key) {
+          return encodeURIComponent(key) + '=' + encodeURIComponent(value);
+        }).join('&');
+        $.ajax({
+          url: ikariam.url(),
+          type: 'POST',
+          data: formDataStr,
+          contentType: 'application/x-www-form-urlencoded',
+          timeout: 30000
+        });
+      }
+      function gotoAjaxURL_old(paramList) {
+        var url = '?' + $.map(paramList, function (value, key) {
+          return key + '=' + value;
+        }).join('&');
+
+        gm_log('Navigating to ' + url + ' via ajax');
         document.location = 'javascript:ajaxHandlerCall(' + JSON.stringify(url) + '); void(0);';
       }
     },
@@ -4615,20 +4624,7 @@
       return this._GameVersion;
     },
     get CurrentCityId() {
-      try {
-        var model = getCachedModel();
-        var selectedId = null;
-        if (model && model.relatedCityData && typeof model.relatedCityData.selectedCity !== 'undefined') {
-          var sel = model.relatedCityData.selectedCity;
-          if (model.relatedCityData[sel]) selectedId = model.relatedCityData[sel].id;
-        }
-        if (unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city') {
-          return ikariam._currentCity || selectedId || null;
-        }
-        return selectedId || null;
-      } catch (e) {
-        return null;
-      }
+      return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city' ? ikariam._currentCity || unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id : unsafeWindow.ikariam.model.relatedCityData[unsafeWindow.ikariam.model.relatedCityData.selectedCity].id;
     },
     get viewIsCity() {
       return unsafeWindow.ikariam.backgroundView && unsafeWindow.ikariam.backgroundView.id === 'city';
@@ -4687,13 +4683,13 @@
         while (len) {
           len--;
           switch (response[len][0]) {
-            case 'updateGlobalData':
+            // case 'updateGlobalData':
               // TODO: this does no longer work
               // this._currentCity = parseInt(response[len][1].backgroundData.id);
               // var cityData = $.extend({}, response[len][1].backgroundData, response[len][1].headerData);
               // events('updateCityData').pub(this.CurrentCityId, $.extend({}, cityData));
               // events('updateBuildingData').pub(this.CurrentCityId, cityData.position);
-              break;
+              // break;
             case 'changeView':
               view = response[len][1][0];
               html = response[len][1][1];
@@ -4706,6 +4702,7 @@
                 }
               }
               break;
+            case 'updateGlobalData':
             case 'updateBackgroundData':
               oldCity = this.CurrentCityId;
               this._currentCity = parseInt(response[len][1].id);
