@@ -32,7 +32,7 @@
 // @resource             programDataScript https://github.com/jacobped/empire-overview/raw/fb357d377395900d844fd7cf60d3ec24ee9d385b/data/programData.js
 // @resource             cssScript https://github.com/jacobped/empire-overview/raw/f3836cbd9cec6458fcae3b62c3e271ece4d53674/data/css.js
 //
-// @version              1.2014
+// @version              1.2015
 //
 // @license              GPL version 3 or any later version; http://www.gnu.org/copyleft/gpl.html
 // ==/UserScript==
@@ -44,6 +44,7 @@
 (function ($) {
   var jQuery = $;
   var isChrome;
+  const _debugCity = "undefined"
   if (window.navigator.vendor.match(/Google/)) {
     isChrome = true;
   } else {
@@ -1445,19 +1446,26 @@
     },
     get _getMaxPopulation() {
       var mPop = 0;
-      if (this.getBuildingFromName(Constant.Buildings.TOWN_HALL)) {
-        mPop = Math.floor((10 * Math.pow(this.getBuildingFromName(Constant.Buildings.TOWN_HALL).getLevel, 1.5))) * 2 + 40;
+      const thLevel = this.getBuildingFromName(Constant.Buildings.TOWN_HALL)?.getLevel || 0;
+      
+      if (thLevel) {
+        mPop = Math.floor((10 * Math.pow(thLevel, 1.5))) * 2 + 40;
       }
-      if (database.getGlobalData.getResearchTopicLevel(Constant.Research.Science.WELL_CONSTRUCTION) && (this.getBuildingFromName(Constant.Buildings.PALACE) || database.getCityCount == 1)) {
-        mPop += 50;
+      
+      const hasWell = !!database.getGlobalData.getResearchTopicLevel(Constant.Research.Science.WELL_CONSTRUCTION);
+      const hasUtopia = !!database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.UTOPIA);
+      const hasHoliday = !!database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.HOLIDAY);
+      const isCapital = !!this.getBuildingFromName(Constant.Buildings.PALACE) || database.getCityCount == 1;
+
+      if(this.getName === _debugCity) {
+        gm_log(`TH: ${mPop}, Capital: ${isCapital}, Well: ${hasWell}, Utopia: ${hasUtopia}, Holiday: ${hasHoliday}`);
       }
-      if (database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.UTOPIA) && this.getBuildingFromName(Constant.Buildings.PALACE)) {
-        mPop += 200;
-      }
-      if (database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.HOLIDAY)) {
-        mPop += 50;
-      }
-      mPop += database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.ECONOMIC_FUTURE) * 20;
+
+      if (hasWell && isCapital) mPop += 50;
+      if (hasUtopia && isCapital) mPop += 200;
+      if (hasHoliday) mPop += 50;
+      
+      mPop += (database.getGlobalData.getResearchTopicLevel(Constant.Research.Economy.ECONOMIC_FUTURE) || 0) * 20;
       return mPop;
     },
     get military() {
@@ -1592,13 +1600,15 @@
       var serverTyp = 1;
       if (ikariam.Server() == 's201' || ikariam.Server() == 's202') serverTyp = 3;
       var plus = this._getSatisfactionData;
-      // GM_log(plus);
       var maxPopulation = this._getMaxPopulation;
       var happiness = (1 - this.getCorruption) * plus.total - this._population;
       var hours = ((untilTime - this._lastPopUpdate) / 3600000);
       var pop = this._population + happiness * (1 - Math.pow(Math.E, -(hours / 50)));
       pop = (pop > maxPopulation) ? this._population > maxPopulation ? this._population : maxPopulation : pop;
       happiness = ((1 - this.getCorruption) * plus.total - pop);
+      if(this.getName === _debugCity) {
+        gm_log("pop: " + pop + ", happiness: " + happiness + ", maxPopulation: " + maxPopulation + ", satisfaction: " + plus.total + ", corruption: " + this.getCorruption);
+      }
       this._citizens = this._citizens + pop - this._population;
       this._population = pop;
       this._lastPopUpdate = untilTime;
@@ -1606,6 +1616,9 @@
       this._pop = { currentPop: pop, maxPop: maxPopulation, satisfaction: plus, happiness: happiness, growth: happiness * 0.02 * serverTyp };
       if (Math.floor(old.currentPop) != Math.floor(this._pop.currentPop) || Math.floor(old.maxPop) != Math.floor(this._pop.maxPop) || Math.floor(old.happiness) != Math.floor(this._pop.happiness)) {
         events(Constant.Events.CITY_UPDATED).pub(this.getId, { population: true });
+      }
+      if(this.getName === _debugCity) {
+        gm_log("projectPopData: " + this.getName + ", currentPop: " + this._pop.currentPop + ", maxPop: " + this._pop.maxPop + ", satisfaction: " + this._pop.satisfaction.total + ", happiness: " + this._pop.happiness + ", growth: " + this._pop.growth);
       }
     },
     get populationData() {
